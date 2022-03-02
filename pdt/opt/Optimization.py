@@ -9,25 +9,38 @@ Created on Tue Feb 22 15:35:14 2022
 import numpy as np
 import matplotlib.pyplot as plt
 import copy
+import matplotlib.pyplot as plt
 
 class MaterialFunction:
-    def __init__(self, dx_hints: dict[str, (float, float, int)], how_hints=np.linspace):
-        self.dx_hints = dx_hints
+    def __init__(self, db_hints: dict[str, (float, float, int)], how_hints=np.linspace):
+        self.db_hints = db_hints
         self.how_hints = how_hints
         # dx_hints has tuples (min, max, number of points) 
     
-    def evalModel(self, x, **kwargs):
+    def evalModel(self, x, params: dict[str, float]):
         pass
     
     def _get_hint_grid(self, name):
-        return self.how_hints(self.dx_hints[name][0], self.dx_hints[name][1], self.dx_hints[name][2])
+        return self.how_hints(self.db_hints[name][0], self.db_hints[name][1], self.db_hints[name][2])
     
-    def __call__(self, x, **kwargs):
-        result = self.evalModel(x, **kwargs)
+    def __call__(self, x, params: dict[str, float]):
+        result = self.evalModel(x, params)
         if result is None:
             return ValueError("MaterialFunction.evalModel returned None. Are you sure this function has been overriden?")
         else:
             return result
+        
+    def hintHelper(count: int, base: str, prototype: (float, float, int)):
+        hints = dict()
+        for i in range(count):
+            hints["{b}{i}".format(b=base, i=i)] = prototype
+        return hints
+    
+    def paramsToArray(count: int, base: str, params):
+        arr = []
+        for i in range(count):
+            arr.append(params["{b}{i}".format(b=base, i=i)])
+        return arr
 
 class DesignRegion:
     def __init__(self, size, N):
@@ -39,56 +52,63 @@ class DesignRegion:
         self.N = N
         
         self.dx = np.asarray([size[i] / N[i] for i in range(self.dim)])
-        
-        self.n_grid = np.meshgrid(*[np.arange(0, self.N[d]) for d in range(self.dim)])
-        for i, axis in enumerate(self.n_grid):
-            self.n_grid[i] = axis.flatten()
-            
+                
+        self.n_grid = np.meshgrid(*[np.arange(0, self.N[d]) for d in range(self.dim)])        
         self.x_grid = self.mapGridToReal(self.n_grid)
     
-    def _check_coord(self, c):
-        c = np.asarray(c)
-        
-        if self.dim == 1 and len(c.shape) == 1:
-            c = np.asarray([c])
-        
-        if len(c.shape) != 2:
-            raise ValueError("DesignRegion.map functions requires a parameter c with len(c.shape) equal to 2")
-        if c.shape[0] != self.dim:
-            raise ValueError("DesignRegion.map functions requires a parameter c with c.shape[0] equal to the dimensionality of the region (c.shape[0] == {shape})".format(shape=c.shape[0]))
+    def _check_coord(self, c):       
+        if len(c) != self.dim:
+            raise ValueError("DesignRegion.map functions requires a parameter c with len(c) equal to the dimensionality of the region (c.shape[0] == {shape})".format(shape=c.shape[0]))
             
-        return c
-    
     def mapRealToGrid(self, x):
-        x = self._check_coord(x)
-        n = np.zeros(x.shape)
+        self._check_coord(x)
+        n = [np.zeros(x_it.shape, dtype=np.float128) for x_it in x]
         
         for d in range(self.dim):
-            n[d,:] = np.clip(np.round((x[d,:] + self.size[d] / 2 - self.dx[d] / 2) * self.N[d] / self.size[d]), 0, self.N[d] - 1)
+            n[d] = np.clip(np.round((x[d] + self.size[d] / 2 - self.dx[d] / 2) * self.N[d] / self.size[d]), 0, self.N[d] - 1)
             
         return n
             
     def mapGridToReal(self, n):
-        n = self._check_coord(n)
-        x = np.zeros(n.shape, dtype=np.float128)
+        self._check_coord(n)
+        x = [np.zeros(n_it.shape, dtype=np.float128) for n_it in n]
         
         for d in range(self.dim):
-            x[d,:] = np.clip(self.size[d] * n[d,:] / self.N[d] + self.dx[d] / 2 - self.size[d]/2, -self.size[d] / 2, self.size[d] / 2)
+            x[d] = np.clip(self.size[d] * n[d] / self.N[d] + self.dx[d] / 2 - self.size[d]/2, -self.size[d] / 2, self.size[d] / 2)
             
         return x
     
-    def evalMaterialFunction(self, mat_func, **kwargs):
-        return mat_func(self.x_grid, **kwargs).reshape(self.N) 
+    def evalMaterialFunction(self, mat_func, x: dict[str, float]):
+        return mat_func(self.x_grid, x)
     
-    def evalMaterialFunctionDerivative(self, mat_func, x: dict[str, float], dx: dict[str, float]):
+    def plotMaterialFunction(self, mat_func, x: dict[str, float]):
+        if self.dim != 2:
+            raise ValueError("Cannot plotMaterialFunction unless dimensionality of the design region is 2")
+            
+        plt.figure()
+        plt.title("material function")
+        plt.imshow(self.evalMaterialFunction(mat_func, x), extent=(-self.size[0]/2, self.size[0]/2, -self.size[1]/2, self.size[1]/2))
+        plt.colorbar()
+        plt.xlabel("x")
+        plt.ylabel("y")
+        
+    def plotMaterialFunctionDerivative(self, mat_func,  x: dict[str, float]):
+        order, du_db = self.evalMaterialFunctionDerivative(mat_func, x)
+        
+        for item, du_db_i in zip(order, du_db):
+            plt.figure()
+            plt.title(r"$du/db$ for {item}".format(item=item))
+            plt.imshow(du_db_i, extent=(-self.size[0]/2, self.size[0]/2, -self.size[1]/2, self.size[1]/2))
+            plt.colorbar()
+            plt.xlabel("x")
+            plt.ylabel("y")
+    
+    def evalMaterialFunctionDerivative(self, mat_func, x: dict[str, float]):
         # Ok, so here is where things start to get a little complex. We need to
         # find du/db, where u is an individual grid point's change when one of
         # the parameters to the material function is perturbed. 
         order = x.keys()
-        current = self.evalMaterialFunction(mat_func, **x)
-                
-        if len(x) != len(dx):
-            raise ValueError("DesignRegion.evalMaterialFunctionDerivative must be have len(x) == len(dx)")
+        current = self.evalMaterialFunction(mat_func, x)
         
         # du/db_i (du is an array the size of the design region)
         du_db = []
@@ -104,7 +124,7 @@ class DesignRegion:
                 perturbed_x[current_name] += possible_dx_i
                 
                 # Evaluate
-                u_b_i = self.evalMaterialFunction(mat_func, **perturbed_x)
+                u_b_i = self.evalMaterialFunction(mat_func, perturbed_x)
                 
                 # Check to see if it is sufficiently different to be useful
                 difference = np.sum(np.abs(current - u_b_i))
@@ -118,28 +138,59 @@ class DesignRegion:
                         # Assume the derivative is zero
                         du_db.append(np.zeros(self.N))
         
-        # Now that we have that array
-                        
-                
-                
-                
-            
-            du_db_i = self.evalMaterialFunction
-            
-if __name__ == "__main__":
-    dr = DesignRegion([100, 100], [100, 100])
+        # Now that we have that array, we return it as our result
+        return order, du_db
+
+from scipy.special import legendre
+class LegendreTaperMaterialFunction(MaterialFunction):
+    def __init__(self, order, dim, w1, w2):
+        MaterialFunction.__init__(self, db_hints=MaterialFunction.hintHelper(count=order, base='b', prototype=(0, 1, 100)))
+        self.order = order
+        self.dim = dim    
         
-    x = np.linspace(0, 100, 100) - 50 + 0.5
-    y = x
+        self.w1 = w1
+        self.w2 = w2
+        self.w_travel = (w2 - w1) / 2
+        
+        self.basis = [legendre(2*n + 1) for n in range(order)] 
+        
+    def evalModel(self, x, params: dict[str, float]):           
+        s = 2 * x[0] / self.dim[0]
+        w = self._eval_weighted(MaterialFunction.paramsToArray(self.order, 'b', params), np.asarray(s, dtype=np.float64))
+        
+        val = np.ones(x[0].shape)
+        val[w + self.w1/2 > np.abs(x[1])] *= 0
+        
+        return val
+
+    # Evaluation of the basis functions
+    def _eval_weighted(self, beta, s):
+        val = np.zeros(s.shape)
+        def eval_basis(i):
+            return self.w_travel * (self.basis[i](s) + 1) / 2
+
+        # Evaluate for the degrees of freedom
+        for i in range(self.order):
+            val += beta[i] * eval_basis(i)
+            
+        # We mutiply everything by a scaling factor to assure that the basis values
+        # sum to 1
+        val /= np.sum(beta)
+            
+        return val
+
+def test_all():
+    dr = DesignRegion([10, 5], [1000, 500])
+    ltmf = LegendreTaperMaterialFunction(3, (10, 5), 1, 5)
     
-    x, y = np.meshgrid(x, y)
-    coord = np.asarray([x.flatten(), y.flatten()])
-    print(coord.shape)
+    params = {'b0': 1,
+              'b1': 0,
+              'b2': 0
+             }
     
-    n = dr.mapRealToGrid(coord)
-    
-    returned_coord = dr.mapGridToReal(n)
-    
-    print(np.max(coord[1] - returned_coord[1]))
-    
+    dr.plotMaterialFunction(ltmf, params)
+    dr.plotMaterialFunctionDerivative(ltmf, params)
+
+if __name__ == "__main__":
+    test_all()
     

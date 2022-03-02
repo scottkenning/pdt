@@ -1,0 +1,129 @@
+\documentclass[12pt]{article}
+
+\author{Scott Kenning}
+\title{A Photonic Optimization Package}
+
+
+\usepackage{tcolorbox}
+\tcbuselibrary{minted,breakable,xparse,skins}
+
+\definecolor{bg}{gray}{0.95}
+\DeclareTCBListing{mintedbox}{O{}m!O{}}{%
+  breakable=true,
+  listing engine=minted,
+  listing only,
+  minted language=#2,
+  minted style=default,
+  minted options={%
+    linenos,
+    gobble=0,
+    breaklines=true,
+    breakafter=,,
+    fontsize=\small,
+    numbersep=8pt,
+    #1},
+  boxsep=0pt,
+  left skip=0pt,
+  right skip=0pt,
+  left=25pt,
+  right=0pt,
+  top=3pt,
+  bottom=3pt,
+  arc=5pt,
+  leftrule=0pt,
+  rightrule=0pt,
+  bottomrule=2pt,
+  toprule=2pt,
+  colback=bg,
+  colframe=orange!70,
+  enhanced,
+  overlay={%
+    \begin{tcbclipinterior}
+    \fill[orange!20!white] (frame.south west) rectangle ([xshift=20pt]frame.north west);
+    \end{tcbclipinterior}},
+  #3}
+
+\begin{document}
+
+\maketitle
+
+\section{Introduction}
+
+\subsection{Motivation}
+Photonic design often takes place by using analytic principles to guide simulations and subsequent manufacturing runs to test devices. This process works well, but there are several reoccurring themes during the design process.
+\begin{enumerate}
+\item Convergence testing must be often performed to ensure simulation results are accurate.\label{list.convergence}
+\item Optimization of structures (beyond the realm available with analytic math) is often carried out through brute force means (i.e., parameter sweeps).\label{list.opt}
+\item It is cumbersome to draw structures in simulation software when models in well-developed layout tools already exist.\label{list.drawing}
+\item Simulation scripts are often ``quick and dirty", meaning they lack readability and structure. Often times, they are copy-and-pastes of previous problems modified slightly.\label{list.structure}
+\end{enumerate}
+We seek to address these issues through the design of a Python package that carries out tasks relevant to solving the above issues. The vision for the Python package was shaped through interaction with photonic designers and firsthand experience working on photonic design problems. 
+
+\subsection{Goals}
+The goals of this project are separated off based on the classification of them being a ``process" problem or a ``design" problem. Process problems refer to \ref{list.convergence}, \ref{list.drawing}, and \ref{list.structure} in the above motivation list, while design problems relate to the generation of a flexible optimization framework related to item \ref{list.opt}.
+
+\subsubsection{Process Problems}
+These goals relate to generating useful code that abstracts the idea of a ``simulation". This relates to breaking the problem into a few key components that are often universal across photonic simulations.
+\begin{itemize}
+\item One-time initialization routines: These routines often initialize the underlying simulation engine. They often are called once in the beginning of a script running. 
+\item Loading desired simulation parameters: Photonic simulations often involve designing devices with an assorted variety of parameters. 
+\item Drawing: Structures in a photonic simulation must be drawn once per iteration. In a single script, the structures may be changed (e.g., during design parameter sweeping).
+\item Running: After structures are drawn, some sort of simulation must take place.
+\item Post-processing: This may involve exporting fields, generating images of results, performing calculations, etc.
+\end{itemize}
+
+\subsubsection{Design Problems}
+Built on the back of the above process problems are design problems. Here, we are concerned with efficiently running simulations that yield optimized photonic devices. This is a difficult concept to address, and we will therefore outline a few goals.
+\begin{itemize}
+\item Allow users to run finite difference optimization algorithms on simulation parameters.
+\item Generate models for designing particular structures using adjoint methods present in a particular simulation suite.
+\end{itemize}
+
+\section{Addressing Process Problems}
+Before ``Design Problems" are addressed, it is important to solve the ``Process Problems". By addressing them in this order, it is possible to fit an optimization framework cohesively inside.
+
+There are two standards for scientific computing that we will allow usage of with our code: MPI and HDF5. Ultimately, usage of MPI is at the mercy of the backend simulation software (Lumerical and MEEP both support it, for example). Since this project provides wrapper functionality around an arbitrary software suite, we do not want it to interfere with MPI and cause deadlocking. Roughly speaking, this translates into all processes call identical backend simulation calls. To do this, we will define methods in the following section that allow MPI-interfacing software to be called within. 
+
+HDF5 is a standard file type that allows storage of large amounts of data in typically an array format. It is widely used and accessible. It is attractive for several reasons.
+\begin{itemize}
+\item Metadata may be easily stored alongside simulation results. This is useful for record keeping and knowing exactly what simulation parameters were used for a given dataset. 
+\item It is compressed and in a binary format (it is more compact then other data formats).
+\item It is easily compatible with Python, Matlab, MEEP, Lumerical, etc. Newer .mat files are actually based off of it.
+\end{itemize}
+This standardized file format will be widely used in the software.
+
+\subsection{The Simulation Class}
+To address process problems, we propose the \mintinline{latex}{Simulation} class. Although the exposed user-interface is rather simple, it provides behind-the-scenes machinery to ensure ease of use and fault-tolerant behavior. The user interface is previewed below. 
+\begin{mintedbox}{python}
+class Simulation:
+	def __init__(self, logname, working_dir="working_dir"):
+	    ...
+
+    def draw(self, parameters):
+        pass
+    
+    def run(self, parameters):
+        return Result(parameters)
+    
+    def process(self, result, parameters):
+        return result
+        
+    def basicSweep(self, parameters: dict[str, list[typing.Any]]):
+    	...
+\end{mintedbox}
+All commands to an MPI-dependent backend should be placed within \mintinline{latex}{draw} and \mintinline{latex}{run}. The \mintinline{latex}{process} function is assumed to contain no code dependent on the simulation backend, and it will only be called on the main MPI process. Hence, all post-processing should be doable on one process (e.g., making plots). 
+
+\subsubsection{Running Basic Parameter Sweeps}
+A task that often comes up is running parameter sweeps. This is done by using \mintinline{latex}{Simulation.basicSweep}. The block diagram of this helper function is shown in Figure \ref{fig.basic_sweep_blocks}.
+\begin{figure}
+\centering{
+\includegraphics[width=\textwidth]{figs/basic_sweep_blocks.png}
+}
+\caption{The block diagram of \mintinline{latex}{Simulation.basicSweep}. Red lines indicate error handling routes and the black represent normal program flow in the absence of errors.}
+\label{fig.basic_sweep_blocks}
+\end{figure}
+The goal of this routine is to provide fault-tolerant running of many simulations. For example, a list of simulations (their parameters) can be loaded from a CSV file using the \mintinline{latex}{CSVParameterLoader} class and passed directly to the \mintinline{latex}{basicSweep} function. If at any point in the \mintinline{latex}{draw}, \mintinline{latex}{run}, or \mintinline{latex}{process} routines an exception is raised, the machinery will salvage as much as possible and then continue running other simulations. Ample logging allows the resulting suppressed exceptions to be debugged by the user. 
+
+To actually write a simulation, the user inherits from the \mintinline{latex}{Simulation} class and overrides atleast \mintinline{latex}{draw} and \mintinline{latex}{run}. Overriding \mintinline{latex}{process} is optional. The \mintinline{latex}{process} routine ultimately gives the user freedom to add additional data to the results of the \mintinline{latex}{run} routine.
+
+\end{document}
