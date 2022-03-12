@@ -7,3 +7,5 @@ pdt.egg-info/top_level.txt
 pdt/core/Simulation.py
 pdt/core/Util.py
 pdt/core/__init__.py
+pdt/opt/Optimization.py
+pdt/opt/__init__.py

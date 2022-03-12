@@ -77,6 +77,38 @@ class CSVParameterLoader:
         if not assert_parameter_lengths(self.parameters):
             raise ValueError("Parameters do not have the same length")
 
+class ParameterChangelog:
+    def __init__(self):
+        self.changes = dict()
+        self.prev = None
+        self.current = None
+        
+    def _track_parameters(self, parameters: dict[str, typing.Any]):
+        self.prev = self.current
+        self.current = parameters
+        
+        if self.prev: # Not the first run
+            self.changes = dict()
+            for key, value in self.current.items():
+                self.changes[key] = (hash(self.current[key]) != hash(self.prev[key]))
+        else: # First run
+            self.changes = dict()
+            for key, value in self.current.items():
+                self.changes[key] = True
+                
+    def changesInclude(self, key_list: list[str]):
+        for key in key_list:
+            if self.changes[key]:
+                return True
+        return False
+    
+    def changesExclude(self, not_key_list: list[str]):
+        for key in self.changes.keys():
+            if (not key in not_key_list) and self.changes[key]:
+                return True
+        return False
+            
+
 '''
 The Simulation class is meant to be inhereted from in the user's code. They 
 create a derived class and override some of the methods to tailor the behavior

@@ -11,6 +11,7 @@ import pandas as pd
 import logging
 import h5py
 import time
+import numpy as np
 
 from pdt.core.Util import *
 from pdt.core.Util import if_master
@@ -27,10 +28,10 @@ class Result:
     
     def _get_unique_name(timestamp: float, parameters: dict[str, typing.Any]):
         # Generates a hash based on the timestamp and parameters
-        return hash([timestamp, frozenset(parameters.items())])
+        return str(hash(frozenset([timestamp, frozenset(parameters.items())])))
     
     @if_master
-    def _save_data(root, name, value, logger):
+    def _save_data(group, name, value, logger):
         # If the data is not in a numpy array, we (try to) convert it to one
         if not isinstance(value, np.ndarray):
             try:
@@ -39,16 +40,16 @@ class Result:
                 logger.warning("Exception thrown when trying to convert data for {name} to a numpy array for saving to HDF5. Exception message '{msg}'. Attempting to continue saving the data. This might get perilous.".format(name=name, msg=str(e)))
     
         try:
-            root.create_dataset(name, data=value)
+            group.create_dataset(name, data=value)
         except Exception as e:
-            logger.error("Exception thrown when trying to save data for {name}. Exception message: '{msg}'.".format(msg=str(e)))
+            logger.error("Exception thrown when trying to save data for {name}. Exception message: '{msg}'.".format(name=name, msg=str(e)))
         
     @if_master 
     def _save(self, root, logger):
         # root is some HDF5 object where a new group will be created and data will be stored
         
         # Generate the unique save name, and generate the HDF5 group
-        save_name = _get_unique_name(time.time(), self.parameters)
+        save_name = Result._get_unique_name(time.time(), self.parameters)
         group = root.create_group(save_name)
         
         # Set the group attributes to the parameters. 
@@ -62,7 +63,7 @@ class Result:
             
         # Start creating and saving results
         for name, value in self.values.items():
-            _save_data(root, name, value, logger)
+            Result._save_data(group, name, value, logger)
             
 class CSVParameterLoader:
     def __init__(self, fname):
@@ -75,6 +76,38 @@ class CSVParameterLoader:
             
         if not assert_parameter_lengths(self.parameters):
             raise ValueError("Parameters do not have the same length")
+
+class ParameterChangelog:
+    def __init__(self):
+        self.changes = dict()
+        self.prev = None
+        self.current = None
+        
+    def _track_parameters(self, parameters: dict[str, typing.Any]):
+        self.prev = self.current
+        self.current = parameters
+        
+        if self.prev: # Not the first run
+            self.changes = dict()
+            for key, value in self.current.items():
+                self.changes[key] = (hash(self.current[key]) != hash(self.prev[key]))
+        else: # First run
+            self.changes = dict()
+            for key, value in self.current.items():
+                self.changes[key] = True
+                
+    def changesInclude(self, key_list: list[str]):
+        for key in key_list:
+            if self.changes[key]:
+                return True
+        return False
+    
+    def changesExclude(self, not_key_list: list[str]):
+        for key in self.changes.keys():
+            if (not key in not_key_list) and self.changes[key]:
+                return True
+        return False
+            
 
 '''
 The Simulation class is meant to be inhereted from in the user's code. They 
@@ -91,10 +124,10 @@ to their problem. This class allows the following:
    This stores data that will be automatically saved in the HDF5 format.
 '''
 class Simulation:
-    def __init__(self, logname, working_dir=""):       
+    def __init__(self, logname, working_dir="working_dir"):       
         # Setup logging
         self.logname = logname
-        self.logger = _setup_logging(logname)
+        self.logger = Simulation._setup_logging(logname)
             
         # Working directory
         self.working_dir = working_dir
@@ -106,10 +139,10 @@ class Simulation:
     
     @if_master
     def _setup_logging(logname):
-        logger = logging.getLogger(self.logname)
+        logger = logging.getLogger(logname)
         logger.setLevel(logging.DEBUG)
         
-        if not self.logger.handlers:
+        if not logger.handlers:
             ch = logging.StreamHandler()
             ch.setLevel(logging.DEBUG)
             
@@ -120,7 +153,7 @@ class Simulation:
       
     @if_master
     def _setup_root_result(self):
-        self.root_result = h5py.File('{logname}.hdf5'.format(logname=self.logname), 'w')
+        self.root_result = h5py.File('{logname}.hdf5'.format(logname=self.logname), 'a')
     
     '''
     Core routines that are overridden by the user when they develop their 
@@ -194,7 +227,7 @@ class Simulation:
                         self._log_info("Finished running {iteration}/{total_iterations}".format(iteration=iteration+1, total_iterations=total_iterations))
                     
                     # If a result has been returned from the running, then we can process it and allow the user to modify it
-                    if result is not None:
+                    if is_master() and result is not None:
                         user_result = None
                         try:
                             user_result = self.process(result, iteration_parameters)
