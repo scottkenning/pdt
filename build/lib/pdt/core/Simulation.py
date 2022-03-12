@@ -12,6 +12,7 @@ import logging
 import h5py
 import time
 import numpy as np
+import copy
 
 from pdt.core.Util import *
 from pdt.core.Util import if_master
@@ -83,14 +84,18 @@ class ParameterChangelog:
         self.prev = None
         self.current = None
         
-    def _track_parameters(self, parameters: dict[str, typing.Any]):
-        self.prev = self.current
-        self.current = parameters
+    def updateParameters(self, parameters: dict[str, typing.Any]):
+        self.prev = copy.deepcopy(self.current)
+        self.current = copy.deepcopy(parameters)
         
         if self.prev: # Not the first run
             self.changes = dict()
             for key, value in self.current.items():
-                self.changes[key] = (hash(self.current[key]) != hash(self.prev[key]))
+                if isinstance(self.current[key], list):
+                    self.changes[key] = (hash(tuple(self.current[key])) != hash(tuple(self.prev[key])))
+                else:
+                    print("HERE:", key, self.current[key], self.prev[key])
+                    self.changes[key] = (hash(self.current[key]) != hash(self.prev[key]))
         else: # First run
             self.changes = dict()
             for key, value in self.current.items():
