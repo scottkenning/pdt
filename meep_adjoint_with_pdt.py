@@ -108,8 +108,8 @@ class LegendreTaperSimulation(Simulation):
                                           eig_parity=mp.ODD_Z+mp.EVEN_Y)]
             
             # Design region setup (using the pdt tools)
-            meep_dr_nx = int(resolution * self.taper_length) // 2
-            meep_dr_ny = int(resolution * self.taper_w2) // 2
+            meep_dr_nx = int(resolution * self.taper_length)
+            meep_dr_ny = int(resolution * self.taper_w2)
             
             self.taper = LegendreTaperMaterialFunction(self.taper_order, [self.taper_length, self.taper_w2], self.taper_w1, self.taper_w2)
             self.design_region = DesignRegion([self.taper_length, self.taper_w2], [meep_dr_nx, meep_dr_ny])
@@ -133,9 +133,15 @@ class LegendreTaperSimulation(Simulation):
             TE0_output = mpa.EigenmodeCoefficient(self.sim, mp.Volume(center=output_monitor_pt, size=mp.Vector3(y=sy-2*pml_y_thickness)), mode=1, forward=True)
             ob_list=[TE0_input, TE0_output]
             
-            def objective_function(TE0_input, TE0_output):
-                #print(npa.mean(npa.abs(TE0_output/TE0_input)**2))
-                return npa.mean(npa.abs(TE0_output/TE0_input)**2) # Maximize the power in the fundamental mode at the output
+            def objective_function(TE0_input_coeff, TE0_output_coeff):  
+                #print("objective_function", TE0_input_coeff.shape, TE0_output_coeff.shape)
+                #print("objective_function", np.abs(TE0_input_coeff), np.abs(TE0_output_coeff))
+                # We want to minimize the radiated power, while maximizing the transmitted power
+                radiated = (npa.abs(TE0_input_coeff)**2) - (npa.abs(TE0_output_coeff)**2) / npa.abs(TE0_input_coeff)**2
+                transmitted = npa.abs(TE0_output_coeff)**2 / npa.abs(TE0_input_coeff)**2
+                                
+                # maximize transmitted - radiated
+                return npa.mean(transmitted) # Maximize the power in the fundamental mode at the output
             
             # MEEP adjoint setup
             self.opt = mpa.OptimizationProblem(simulation=self.sim, 
@@ -143,7 +149,8 @@ class LegendreTaperSimulation(Simulation):
                                                objective_arguments=ob_list,
                                                design_regions=[meep_design_region],
                                                frequencies=1/np.asarray(self.wavelengths),
-                                               decay_by=1e-3)
+                                               decay_by=1e-5,
+                                               minimum_run_time=300)
             
             # End reconstruction of the simulation
         else:
@@ -159,24 +166,30 @@ class LegendreTaperSimulation(Simulation):
         # Run the forward and adjoint run
         f0, dJ_du = (self.opt)()
         
-        if Util.is_master():
-            if len(dJ_du.shape) > 1:
-                print(dJ_du)
-                dJ_du = np.sum(dJ_du, axis=1).reshape(self.design_region.N).transpose()
-                print(dJ_du.shape)
-                print(dJ_du)
+        return dJ_du, self.wavelengths, self.design_region.N
+
+def plot_gradient(dJ_du, wavelengths, N):
+    if Util.is_master():
+        if len(dJ_du.shape) > 1:
+            plt.figure()
+            #print(dJ_du)
+            plt.imshow(npa.sum(dJ_du, axis=1).reshape(N).transpose())
+            '''
+            print("dJ_du.shape", dJ_du.shape)
+            for i in range(len(wavelengths)):
                 plt.figure()
-                plt.imshow(np.sum(dJ_du, axis=1).reshape(self.design_region.N).transpose())
-            else:
-                plt.figure()
-                plt.imshow(dJ_du.reshape(self.design_region.N).transpose())
-                plt.savefig("result.png")
-        
-                
+                plt.title("{wavelength}".format(wavelength=round(wavelengths[i], 2)))
+                plt.imshow(dJ_du[:,i].reshape(N).transpose())
+            '''
+        else:
+            plt.figure()
+            plt.imshow(dJ_du.reshape(N).transpose())
+            plt.savefig("result.png")
+
 if __name__ == "__main__":
     sim = LegendreTaperSimulation(center_wavelength=1.55,
-                                  gaussian_width=0.01,
-                                  wavelengths=[1.55],
+                                  gaussian_width=50,
+                                  wavelengths=np.linspace(1.50, 1.60, 3),
                                   taper_order=10, 
                                   taper_w1=1, 
                                   taper_w2=5, 
@@ -189,11 +202,18 @@ if __name__ == "__main__":
         "pml_y_thickness" : 3,
         "to_pml_x" : 3,
         "to_pml_y" : 3,
-        "resolution" : 16,
-        "polynomial_coeffs" : [1, 1, 0, 0, 0, 0, 0, 0, 0, 0]
+        "resolution" : 20,
+        "polynomial_coeffs" : [1, 0, 0, 0, 0, 0, 0, 0, 0, 0]
         }
     
-    sim.run(test_parameters)
-    test_parameters["polynomial_coeffs"] = [1, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-    sim.run(test_parameters)
+    dJ_du, wavelengths, N = sim.run(test_parameters)
+    plot_gradient(dJ_du, wavelengths, N)
     
+    test_parameters["polynomial_coeffs"] = [1, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    dJ_du, wavelengths, N = sim.run(test_parameters)
+    plot_gradient(dJ_du, wavelengths, N)
+    
+    test_parameters["polynomial_coeffs"] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 1]
+    dJ_du, wavelengths, N = sim.run(test_parameters)
+    plot_gradient(dJ_du, wavelengths, N)
+
