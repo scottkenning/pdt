@@ -118,6 +118,7 @@ class DesignRegion:
         
         # du/db_i (du is an array the size of the design region)
         du_db = []
+        min_db = []
         for i, current_name in enumerate(order):
             # We want the perturbation algorithm to be smart, that means if it generates 
             # a device that is equivalent with respect to the underlying discrete material grid,
@@ -138,15 +139,17 @@ class DesignRegion:
                     #print("perturbation for {current_name}: {possible_dx_i}".format(current_name=current_name, possible_dx_i=possible_dx_i))
                     # sufficiently different
                     du_db.append((u_b_i - current) / possible_dx_i)
+                    min_db.append(possible_dx_i)
                     break
                 else:
                     if j == len(possible_dx_i_s) - 1:
                         # The hint range does not perturb the design near x
                         # Assume the derivative is zero
                         du_db.append(np.zeros(self.N))
+                        min_db.append(0)
         
         # Now that we have that array, we return it as our result
-        return order, du_db
+        return order, du_db, min_db
 
 from scipy.special import legendre
 class LegendreTaperMaterialFunction(MaterialFunction):

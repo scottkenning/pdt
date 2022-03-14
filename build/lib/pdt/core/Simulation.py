@@ -94,7 +94,6 @@ class ParameterChangelog:
                 if isinstance(self.current[key], list):
                     self.changes[key] = (hash(tuple(self.current[key])) != hash(tuple(self.prev[key])))
                 else:
-                    print("HERE:", key, self.current[key], self.prev[key])
                     self.changes[key] = (hash(self.current[key]) != hash(self.prev[key]))
         else: # First run
             self.changes = dict()
@@ -130,20 +129,20 @@ to their problem. This class allows the following:
 '''
 class Simulation:
     def __init__(self, logname, working_dir="working_dir"):       
-        # Setup logging
-        self.logname = logname
-        self.logger = Simulation._setup_logging(logname)
-            
         # Working directory
         self.working_dir = working_dir
         if_master(make_path_exist)(working_dir)
+        
+        # Setup logging
+        self.logname = logname
+        self.logger = Simulation._setup_logging(logname, working_dir)
         
         # Result file
         self.root_result = None
         self._setup_root_result()
     
     @if_master
-    def _setup_logging(logname):
+    def _setup_logging(logname, working_dir):
         logger = logging.getLogger(logname)
         logger.setLevel(logging.DEBUG)
         
@@ -151,14 +150,20 @@ class Simulation:
             ch = logging.StreamHandler()
             ch.setLevel(logging.DEBUG)
             
+            fh = logging.FileHandler("{working_dir}/{logname}.log".format(working_dir=working_dir, logname=logname), mode='a')
+            fh.setLevel(logging.DEBUG)
+            
             formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
             ch.setFormatter(formatter)
+            fh.setFormatter(formatter)
+            
             logger.addHandler(ch)
+            logger.addHandler(fh)
         return logger           
       
     @if_master
     def _setup_root_result(self):
-        self.root_result = h5py.File('{logname}.hdf5'.format(logname=self.logname), 'a')
+        self.root_result = h5py.File('{working_dir}/{logname}.hdf5'.format(working_dir=self.working_dir, logname=self.logname), 'a')
     
     '''
     Core routines that are overridden by the user when they develop their 
@@ -198,6 +203,42 @@ class Simulation:
     routines in some fashion, such as a basic parameter sweep based off of 
     a list of parameters. 
     '''
+    def oneOff(self, iteration_parameters: dict[str, typing.Any], iteration=1, total_iterations=1):
+        # So when we are running alot of simulations, we don't want some random error in one of them to kill this entire process
+        # We suppress and log it
+        drawn = False
+
+        try:
+            self.draw(iteration_parameters)                    
+            drawn = True
+        except Exception as e:
+            self._log_error("Failed drawing {iteration}/{total_iterations} with exception '{exception}'".format(iteration=iteration, total_iterations=total_iterations, exception=str(e)))
+        else:
+            self._log_info("Finished drawing {iteration}/{total_iterations}".format(iteration=iteration, total_iterations=total_iterations))
+        
+        if drawn:
+            result = None
+            try:
+                result = self.run(iteration_parameters)                    
+            except Exception as e:
+                self._log_error("Failed running {iteration}/{total_iterations} with exception '{exception}'".format(iteration=iteration, total_iterations=total_iterations, exception=str(e)))
+            else:
+                self._log_info("Finished running {iteration}/{total_iterations}".format(iteration=iteration, total_iterations=total_iterations))
+            
+            # If a result has been returned from the running, then we can process it and allow the user to modify it
+            if is_master() and result is not None:
+                user_result = None
+                try:
+                    user_result = self.process(result, iteration_parameters)
+                except Exception as e:
+                    self._log_error("Failed processing {iteration}/{total_iterations} with exception '{exception}'".format(iteration=iteration, total_iterations=total_iterations, exception=str(e)))
+                    result._save(self.root_result, self.logger) # Save what we have, even though the user failed processing it
+                else:
+                    # If the returned result is not None, we save it and return it
+                    if user_result is not None:
+                        user_result._save(self.root_result, self.logger)
+                        return user_result
+        
     def basicSweep(self, parameters: dict[str, list[typing.Any]]):
         # Provides a basic way to sweep parameters
         self._log_info("Starting a basic sweep.")
@@ -209,40 +250,8 @@ class Simulation:
             for iteration in range(total_iterations):
                 self._log_info("Starting {iteration}/{total_iterations}".format(iteration=iteration+1, total_iterations=total_iterations))
                 
-                # So when we are running alot of simulations, we don't want some random error in one of them to kill this entire process
-                # We suppress and log it
-                drawn = False
                 iteration_parameters = get_parameter_iteration(iteration, parameters)
-
-                try:
-                    self.draw(iteration_parameters)                    
-                    drawn = True
-                except Exception as e:
-                    self._log_error("Failed drawing {iteration}/{total_iterations} with exception '{exception}'".format(iteration=iteration+1, total_iterations=total_iterations, exception=str(e)))
-                else:
-                    self._log_info("Finished drawing {iteration}/{total_iterations}".format(iteration=iteration+1, total_iterations=total_iterations))
-                
-                if drawn:
-                    result = None
-                    try:
-                        result = self.run(iteration_parameters)                    
-                    except Exception as e:
-                        self._log_error("Failed running {iteration}/{total_iterations} with exception '{exception}'".format(iteration=iteration+1, total_iterations=total_iterations, exception=str(e)))
-                    else:
-                        self._log_info("Finished running {iteration}/{total_iterations}".format(iteration=iteration+1, total_iterations=total_iterations))
-                    
-                    # If a result has been returned from the running, then we can process it and allow the user to modify it
-                    if is_master() and result is not None:
-                        user_result = None
-                        try:
-                            user_result = self.process(result, iteration_parameters)
-                        except Exception as e:
-                            self._log_error("Failed processing {iteration}/{total_iterations} with exception '{exception}'".format(iteration=iteration+1, total_iterations=total_iterations, exception=str(e)))
-                            result._save(self.root_result, self.logger) # Save what we have, even though the user failed processing it
-                        else:
-                            # If the returned result is not None, we save it
-                            if user_result is not None:
-                                user_result._save(self.root_result, self.logger)
+                self.oneOff(iteration_parameters, iteration+1, total_iterations)
                                 
             self._log_info("Finished basic sweep")
         else:

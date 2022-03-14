@@ -6,7 +6,7 @@ Created on Wed Mar  2 11:18:16 2022
 @author: skenning
 """
 
-from pdt.core import Simulation, Util, ParameterChangelog
+from pdt.core import Simulation, Util, ParameterChangelog, Result
 from pdt.opt import DesignRegion, MaterialFunction, LegendreTaperMaterialFunction
 
 import meep as mp
@@ -19,6 +19,8 @@ import matplotlib.pyplot as plt
 
 import copy
 
+import scipy
+
 class LegendreTaperSimulation(Simulation):
     def __init__(self, 
                  center_wavelength,
@@ -28,7 +30,7 @@ class LegendreTaperSimulation(Simulation):
                  taper_w1, 
                  taper_w2, 
                  taper_length):
-        Simulation.__init__(self, "LegendreTaperSimulation", working_dir="legendretapersimulation_working_dir")
+        Simulation.__init__(self, "LegendreTaperSimulation", working_dir="lts_working_dir")
         
         # Taper parameters
         self.taper_order = taper_order
@@ -165,55 +167,75 @@ class LegendreTaperSimulation(Simulation):
         
         # Run the forward and adjoint run
         f0, dJ_du = (self.opt)()
+        dJ_du = npa.sum(dJ_du, axis=1).reshape(self.design_region.N).transpose()
         
-        return dJ_du, self.wavelengths, self.design_region.N
-
-def plot_gradient(dJ_du, wavelengths, N):
-    if Util.is_master():
-        if len(dJ_du.shape) > 1:
-            plt.figure()
-            #print(dJ_du)
-            plt.imshow(npa.sum(dJ_du, axis=1).reshape(N).transpose())
-            '''
-            print("dJ_du.shape", dJ_du.shape)
-            for i in range(len(wavelengths)):
-                plt.figure()
-                plt.title("{wavelength}".format(wavelength=round(wavelengths[i], 2)))
-                plt.imshow(dJ_du[:,i].reshape(N).transpose())
-            '''
-        else:
-            plt.figure()
-            plt.imshow(dJ_du.reshape(N).transpose())
-            plt.savefig("result.png")
+        # Compute the gradient with respect to the taper parameters
+        order, du_db, min_db = self.design_region.evalMaterialFunctionDerivative(self.taper, MaterialFunction.arrayToParams('b', polynomial_coeffs)) # Material function vs taper coefficients
+        dJ_db = np.asarray([np.sum(dJ_du * du_db[i]) for i in range(len(order))])
+        
+        return Result(parameters, f0=f0, dJ_du=dJ_du, dJ_db=dJ_db, min_db=np.asarray(min_db), wavelengths=self.wavelengths)
+    
+    def process(self, result, parameters):
+        plt.figure()
+        plt.imshow(result.values["dJ_du"])
+        plt.savefig("result.png")
+        
+        return result # We return this just to assert that we actually do want this data saved
 
 if __name__ == "__main__":
+    taper_order = 10
+    
     sim = LegendreTaperSimulation(center_wavelength=1.55,
                                   gaussian_width=50,
                                   wavelengths=np.linspace(1.50, 1.60, 3),
-                                  taper_order=10, 
+                                  taper_order=taper_order, 
                                   taper_w1=1, 
                                   taper_w2=5, 
                                   taper_length=5)
     
     # Test run to make sure everything is ok
-    test_parameters = {
+    parameters = {
         "straight_length" : 5,
         "pml_x_thickness" : 3,
         "pml_y_thickness" : 3,
         "to_pml_x" : 3,
         "to_pml_y" : 3,
-        "resolution" : 20,
-        "polynomial_coeffs" : [1, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        }
+        "resolution" : 16
+    }
     
-    dJ_du, wavelengths, N = sim.run(test_parameters)
-    plot_gradient(dJ_du, wavelengths, N)
+    f0 = None
+    jacobian = None
+    x_prev = None
+    min_db = None
+    def f(x):
+        global f0
+        global jacobian # bad
+        global x_prev
+        global min_db
+        
+        if (min_db is not None) and (np.abs(x - x_prev) < min_db).all():
+            sim._log_info("optimizer visited similar {x}, not re-running".format(x=x))
+            return f0
+        else:
+            # Update the parameters
+            parameters["polynomial_coeffs"] = tuple(x)
+            
+            # Run it        
+            result = sim.oneOff(parameters)
+            
+            # We want to maximize the transmission, so we negate everything
+            f0 = result.values["f0"]
+            jacobian = result.values["dJ_db"]
+            x_prev = x
+            min_db = result.values["min_db"]
     
-    test_parameters["polynomial_coeffs"] = [1, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-    dJ_du, wavelengths, N = sim.run(test_parameters)
-    plot_gradient(dJ_du, wavelengths, N)
+            sim._log_info("optimizer visited {x}: {f0}, {jacobian}".format(x=x, f0=f0, jacobian=jacobian))
+                
+        return f0
+        
+    def jac(x):
+        return jacobian
     
-    test_parameters["polynomial_coeffs"] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 1]
-    dJ_du, wavelengths, N = sim.run(test_parameters)
-    plot_gradient(dJ_du, wavelengths, N)
-
+    x0 = [0]*taper_order
+    x0[0] = 1
+    scipy.optimize.minimize(f, x0, method='Newton-CG', jac=jac, tol=1e-9)

@@ -1,0 +1,215 @@
+2022-03-13 19:38:29,839 - LegendreTaperSimulation - INFO - Finished drawing 1/1
+2022-03-13 19:38:29,840 - LegendreTaperSimulation - INFO - Convergence parameters changed, rebuilding simulation
+2022-03-13 19:38:41,948 - LegendreTaperSimulation - INFO - Finished running 1/1
+2022-03-13 19:38:42,060 - LegendreTaperSimulation - INFO - optimizer visited [0.07412075 0.33468714]: -0.41819297119732085, [-4.20684665e-04  5.18581488e-05]
+2022-03-13 19:38:42,061 - LegendreTaperSimulation - INFO - Finished drawing 1/1
+2022-03-13 19:38:42,061 - LegendreTaperSimulation - INFO - Convergence parameters did not change
+2022-03-13 19:38:54,214 - LegendreTaperSimulation - INFO - Finished running 1/1
+2022-03-13 19:38:54,272 - LegendreTaperSimulation - INFO - optimizer visited [1.06660841 0.21234236]: -0.30094203473363357, [ 7.23136989e-06 -8.44309816e-05]
+2022-03-13 19:38:54,272 - LegendreTaperSimulation - INFO - Finished drawing 1/1
+2022-03-13 19:38:54,273 - LegendreTaperSimulation - INFO - Convergence parameters did not change
+2022-03-13 19:39:05,901 - LegendreTaperSimulation - INFO - Finished running 1/1
+2022-03-13 19:39:05,961 - LegendreTaperSimulation - INFO - optimizer visited [0.07471769 0.33461355]: -0.41819297119732085, [-4.20684665e-04  5.18581488e-05]
+2022-03-13 19:39:05,961 - LegendreTaperSimulation - INFO - Finished drawing 1/1
+2022-03-13 19:39:05,962 - LegendreTaperSimulation - INFO - Convergence parameters did not change
+2022-03-13 19:39:17,669 - LegendreTaperSimulation - INFO - Finished running 1/1
+2022-03-13 19:39:17,727 - LegendreTaperSimulation - INFO - optimizer visited [0.07424673 0.33467161]: -0.41819297119732085, [-4.20660465e-04  5.18550472e-05]
+2022-03-13 19:39:17,727 - LegendreTaperSimulation - INFO - Finished drawing 1/1
+2022-03-13 19:39:17,728 - LegendreTaperSimulation - INFO - Convergence parameters did not change
+2022-03-13 19:39:29,525 - LegendreTaperSimulation - INFO - Finished running 1/1
+2022-03-13 19:39:29,598 - LegendreTaperSimulation - INFO - optimizer visited [0.07414734 0.33468386]: -0.41819297119732085, [-4.20684665e-04  5.18581488e-05]
+2022-03-13 19:39:29,599 - LegendreTaperSimulation - INFO - Finished drawing 1/1
+2022-03-13 19:39:29,599 - LegendreTaperSimulation - INFO - Convergence parameters did not change
+2022-03-13 19:39:41,372 - LegendreTaperSimulation - INFO - Finished running 1/1
+2022-03-13 19:39:41,434 - LegendreTaperSimulation - INFO - optimizer visited [0.07412636 0.33468644]: -0.41819297119732085, [-4.20684665e-04  5.18581488e-05]
+2022-03-13 19:39:41,435 - LegendreTaperSimulation - INFO - Finished drawing 1/1
+2022-03-13 19:39:41,436 - LegendreTaperSimulation - INFO - Convergence parameters did not change
+2022-03-13 19:39:53,197 - LegendreTaperSimulation - INFO - Finished running 1/1
+2022-03-13 19:39:53,256 - LegendreTaperSimulation - INFO - optimizer visited [0.07412194 0.33468699]: -0.41819297119732085, [-4.20684665e-04  5.18581488e-05]
+2022-03-13 19:39:53,257 - LegendreTaperSimulation - INFO - Finished drawing 1/1
+2022-03-13 19:39:53,258 - LegendreTaperSimulation - INFO - Convergence parameters did not change
+2022-03-13 19:40:04,939 - LegendreTaperSimulation - INFO - Finished running 1/1
+2022-03-13 19:40:04,996 - LegendreTaperSimulation - INFO - optimizer visited [0.074121   0.33468711]: -0.41819297119732085, [-4.20684665e-04  5.18581488e-05]
+2022-03-13 19:40:04,997 - LegendreTaperSimulation - INFO - Finished drawing 1/1
+2022-03-13 19:40:04,997 - LegendreTaperSimulation - INFO - Convergence parameters did not change
+2022-03-13 19:40:16,683 - LegendreTaperSimulation - INFO - Finished running 1/1
+2022-03-13 19:40:16,739 - LegendreTaperSimulation - INFO - optimizer visited [0.0741208  0.33468713]: -0.4181929711719527, [-4.20684665e-04  5.18581488e-05]
+2022-03-13 19:40:16,740 - LegendreTaperSimulation - INFO - Finished drawing 1/1
+2022-03-13 19:40:16,740 - LegendreTaperSimulation - INFO - Convergence parameters did not change
+2022-03-13 19:40:28,640 - LegendreTaperSimulation - INFO - Finished running 1/1
+2022-03-13 19:40:28,696 - LegendreTaperSimulation - INFO - optimizer visited [0.07412076 0.33468714]: -0.41819297119732085, [-4.20684665e-04  5.18581488e-05]
+2022-03-13 19:40:28,696 - LegendreTaperSimulation - INFO - Finished drawing 1/1
+2022-03-13 19:40:28,697 - LegendreTaperSimulation - INFO - Convergence parameters did not change
+2022-03-13 19:40:40,515 - LegendreTaperSimulation - INFO - Finished running 1/1
+2022-03-13 19:40:40,586 - LegendreTaperSimulation - INFO - optimizer visited [0.07412075 0.33468714]: -0.41819297119732085, [-4.20684665e-04  5.18581488e-05]
+2022-03-13 19:40:40,587 - LegendreTaperSimulation - INFO - Finished drawing 1/1
+2022-03-13 19:40:40,587 - LegendreTaperSimulation - INFO - Convergence parameters did not change
+2022-03-13 19:40:52,317 - LegendreTaperSimulation - INFO - Finished running 1/1
+2022-03-13 19:40:52,373 - LegendreTaperSimulation - INFO - optimizer visited [0.07412075 0.33468714]: -0.41819297119732085, [-4.20684665e-04  5.18581488e-05]
+2022-03-13 19:40:52,374 - LegendreTaperSimulation - INFO - Finished drawing 1/1
+2022-03-13 19:40:52,375 - LegendreTaperSimulation - INFO - Convergence parameters did not change
+2022-03-13 19:41:03,944 - LegendreTaperSimulation - INFO - Finished running 1/1
+2022-03-13 19:41:04,015 - LegendreTaperSimulation - INFO - optimizer visited [0.07412075 0.33468714]: -0.41819297119732085, [-4.20684665e-04  5.18581488e-05]
+2022-03-13 19:41:04,016 - LegendreTaperSimulation - INFO - Finished drawing 1/1
+2022-03-13 19:41:04,016 - LegendreTaperSimulation - INFO - Convergence parameters did not change
+2022-03-13 19:41:15,680 - LegendreTaperSimulation - INFO - Finished running 1/1
+2022-03-13 19:41:15,737 - LegendreTaperSimulation - INFO - optimizer visited [0.07412075 0.33468714]: -0.41819297119731996, [-4.20684665e-04  5.18581488e-05]
+2022-03-13 19:41:15,738 - LegendreTaperSimulation - INFO - Finished drawing 1/1
+2022-03-13 19:41:15,738 - LegendreTaperSimulation - INFO - Convergence parameters did not change
+2022-03-13 19:41:27,468 - LegendreTaperSimulation - INFO - Finished running 1/1
+2022-03-13 19:41:27,542 - LegendreTaperSimulation - INFO - optimizer visited [0.07412075 0.33468714]: -0.41819297119732085, [-4.20684665e-04  5.18581488e-05]
+2022-03-13 19:41:27,543 - LegendreTaperSimulation - INFO - Finished drawing 1/1
+2022-03-13 19:41:27,543 - LegendreTaperSimulation - INFO - Convergence parameters did not change
+2022-03-13 19:45:03,844 - LegendreTaperSimulation - INFO - Finished drawing 1/1
+2022-03-13 19:45:03,845 - LegendreTaperSimulation - INFO - Convergence parameters changed, rebuilding simulation
+2022-03-13 19:45:15,815 - LegendreTaperSimulation - INFO - Finished running 1/1
+2022-03-13 19:45:15,929 - LegendreTaperSimulation - INFO - optimizer visited [0.23877337 0.00529315]: -0.16918855852809966, [2.30838726e-05 2.24049343e-04]
+2022-03-13 19:45:46,099 - LegendreTaperSimulation - INFO - Finished drawing 1/1
+2022-03-13 19:45:46,100 - LegendreTaperSimulation - INFO - Convergence parameters changed, rebuilding simulation
+2022-03-13 19:45:58,013 - LegendreTaperSimulation - INFO - Finished running 1/1
+2022-03-13 19:45:58,116 - LegendreTaperSimulation - INFO - optimizer visited [0.62994054 0.36883591]: -0.3872854346127029, [-4.85526747e-04  1.09425447e-05]
+2022-03-13 19:46:37,543 - LegendreTaperSimulation - INFO - Finished drawing 1/1
+2022-03-13 19:46:37,544 - LegendreTaperSimulation - INFO - Convergence parameters changed, rebuilding simulation
+2022-03-13 19:46:49,885 - LegendreTaperSimulation - INFO - Finished running 1/1
+2022-03-13 19:46:49,990 - LegendreTaperSimulation - INFO - optimizer visited [0.56243946 0.14206111]: -0.24678610906901957, [-7.19902861e-07 -2.63568173e-05]
+2022-03-13 19:47:31,556 - LegendreTaperSimulation - INFO - Finished drawing 1/1
+2022-03-13 19:47:31,556 - LegendreTaperSimulation - INFO - Convergence parameters changed, rebuilding simulation
+2022-03-13 19:47:43,563 - LegendreTaperSimulation - INFO - Finished running 1/1
+2022-03-13 19:47:43,669 - LegendreTaperSimulation - INFO - optimizer visited [0.02896183 0.58194785]: -0.3251882871071153, [-4.12995830e-04  1.14843181e-05]
+2022-03-13 19:47:43,670 - LegendreTaperSimulation - INFO - Finished drawing 1/1
+2022-03-13 19:47:43,671 - LegendreTaperSimulation - INFO - Convergence parameters did not change
+2022-03-13 19:47:55,707 - LegendreTaperSimulation - INFO - Finished running 1/1
+2022-03-13 19:47:55,771 - LegendreTaperSimulation - INFO - optimizer visited [1.02857543 0.55415125]: -0.38515938965065927, [ 0.00019979 -0.00012669]
+2022-03-13 19:47:55,772 - LegendreTaperSimulation - INFO - Finished drawing 1/1
+2022-03-13 19:47:55,772 - LegendreTaperSimulation - INFO - Convergence parameters did not change
+2022-03-13 19:48:07,450 - LegendreTaperSimulation - INFO - Finished running 1/1
+2022-03-13 19:48:07,516 - LegendreTaperSimulation - INFO - optimizer visited [0.72740184 0.68935722]: -0.33356941583412586, [-1.11807783e-04  1.91552680e-05]
+2022-03-13 19:48:07,517 - LegendreTaperSimulation - INFO - Finished drawing 1/1
+2022-03-13 19:48:07,517 - LegendreTaperSimulation - INFO - Convergence parameters did not change
+2022-03-13 19:48:19,530 - LegendreTaperSimulation - INFO - Finished running 1/1
+2022-03-13 19:48:19,586 - LegendreTaperSimulation - INFO - optimizer visited [1.02850025 0.55418499]: -0.38515938965054786, [ 0.00019978 -0.00012669]
+2022-03-13 19:48:19,587 - LegendreTaperSimulation - INFO - optimizer visited similar [1.02855954 0.55415838], not re-running
+2022-03-13 19:48:19,587 - LegendreTaperSimulation - INFO - optimizer visited similar [1.02857207 0.55415275], not re-running
+2022-03-13 19:48:19,588 - LegendreTaperSimulation - INFO - optimizer visited similar [1.02857472 0.55415156], not re-running
+2022-03-13 19:48:19,589 - LegendreTaperSimulation - INFO - optimizer visited similar [1.02857528 0.55415131], not re-running
+2022-03-13 19:48:19,589 - LegendreTaperSimulation - INFO - optimizer visited similar [1.02857539 0.55415126], not re-running
+2022-03-13 19:48:19,590 - LegendreTaperSimulation - INFO - optimizer visited similar [1.02857542 0.55415125], not re-running
+2022-03-13 19:48:19,591 - LegendreTaperSimulation - INFO - optimizer visited similar [1.02857542 0.55415125], not re-running
+2022-03-13 19:48:19,592 - LegendreTaperSimulation - INFO - optimizer visited similar [1.02857543 0.55415125], not re-running
+2022-03-13 19:48:19,592 - LegendreTaperSimulation - INFO - optimizer visited similar [1.02857543 0.55415125], not re-running
+2022-03-13 19:48:19,593 - LegendreTaperSimulation - INFO - optimizer visited similar [1.02857543 0.55415125], not re-running
+2022-03-13 19:48:19,593 - LegendreTaperSimulation - INFO - optimizer visited similar [1.02857543 0.55415125], not re-running
+2022-03-13 19:49:51,432 - LegendreTaperSimulation - INFO - Finished drawing 1/1
+2022-03-13 19:49:51,433 - LegendreTaperSimulation - INFO - Convergence parameters changed, rebuilding simulation
+2022-03-13 19:56:14,624 - LegendreTaperSimulation - INFO - Finished running 1/1
+2022-03-13 19:56:14,760 - LegendreTaperSimulation - INFO - optimizer visited [0.3736276  0.47238775]: -28.128052392960115, [-0.02588439 -0.02140931]
+2022-03-13 19:56:14,761 - LegendreTaperSimulation - INFO - Finished drawing 1/1
+2022-03-13 19:56:14,761 - LegendreTaperSimulation - INFO - Convergence parameters did not change
+2022-03-13 20:01:52,890 - LegendreTaperSimulation - INFO - Finished running 1/1
+2022-03-13 20:01:52,967 - LegendreTaperSimulation - INFO - optimizer visited [1.14420109 1.1097389 ]: -26.38928995644319, [-0.01237318 -0.02594838]
+2022-03-13 20:01:52,968 - LegendreTaperSimulation - INFO - Finished drawing 1/1
+2022-03-13 20:01:52,968 - LegendreTaperSimulation - INFO - Convergence parameters did not change
+2022-03-13 20:07:29,962 - LegendreTaperSimulation - INFO - Finished running 1/1
+2022-03-13 20:07:30,032 - LegendreTaperSimulation - INFO - optimizer visited [0.37607289 0.47441028]: -28.236462811425586, [-0.02752971 -0.01186455]
+2022-03-13 20:07:30,033 - LegendreTaperSimulation - INFO - Finished drawing 1/1
+2022-03-13 20:07:30,034 - LegendreTaperSimulation - INFO - Convergence parameters did not change
+2022-03-13 20:13:06,561 - LegendreTaperSimulation - INFO - Finished running 1/1
+2022-03-13 20:13:06,642 - LegendreTaperSimulation - INFO - optimizer visited [0.40961183 0.48975869]: -27.633245394832006, [nan nan]
+2022-03-13 20:13:06,643 - LegendreTaperSimulation - INFO - Finished drawing 1/1
+2022-03-13 20:13:06,643 - LegendreTaperSimulation - INFO - Convergence parameters did not change
+2022-03-13 20:18:45,849 - LegendreTaperSimulation - INFO - Finished running 1/1
+2022-03-13 20:18:45,941 - LegendreTaperSimulation - INFO - optimizer visited [0.37607289 0.47441028]: -28.236462811425586, [-0.02752971 -0.01186455]
+2022-03-13 20:31:16,700 - LegendreTaperSimulation - INFO - Finished drawing 1/1
+2022-03-13 20:31:16,701 - LegendreTaperSimulation - INFO - Convergence parameters changed, rebuilding simulation
+2022-03-13 20:37:49,322 - LegendreTaperSimulation - INFO - Finished running 1/1
+2022-03-13 20:37:49,455 - LegendreTaperSimulation - INFO - optimizer visited [0.83717724 0.85580039 0.40497588 0.59608919 0.81259393 0.60592277
+ 0.74027545 0.2500882  0.0362429  0.22368122]: -35.3251671412205, [-0.00283369  0.00047182 -0.00283369 -0.00704173 -0.00161641 -0.00283369
+ -0.00814015  0.00310962 -0.00814015 -0.00814015]
+2022-03-13 20:37:49,456 - LegendreTaperSimulation - INFO - Finished drawing 1/1
+2022-03-13 20:37:49,457 - LegendreTaperSimulation - INFO - Convergence parameters did not change
+2022-03-13 20:44:15,202 - LegendreTaperSimulation - INFO - Finished running 1/1
+2022-03-13 20:44:15,292 - LegendreTaperSimulation - INFO - optimizer visited [1.00504055 0.82785066 0.57283919 1.01322979 0.90834743 0.77378608
+ 1.22248447 0.06587933 0.51845192 0.70589024]: -30.479994553264287, [-0.00626475  0.01144314  0.00388727 -0.00093118  0.00929381  0.00388727
+ -0.00241944  0.00929381  0.00929381 -0.00062079]
+2022-03-13 20:44:15,293 - LegendreTaperSimulation - INFO - Finished drawing 1/1
+2022-03-13 20:44:15,294 - LegendreTaperSimulation - INFO - Convergence parameters did not change
+2022-03-13 20:50:10,213 - LegendreTaperSimulation - INFO - Finished running 1/1
+2022-03-13 20:50:10,289 - LegendreTaperSimulation - INFO - optimizer visited [0.83727455 0.85578418 0.40507319 0.59633102 0.81264945 0.60602009
+ 0.74055501 0.24998141 0.03652245 0.22396077]: -35.3251671412205, [-0.00283369  0.00047182 -0.00283369 -0.00704173 -0.00161641 -0.00283369
+ -0.00814015  0.00310962 -0.00814015 -0.00814015]
+2022-03-13 20:50:10,290 - LegendreTaperSimulation - INFO - optimizer visited similar [0.83719777 0.85579697 0.40499641 0.59614023 0.81260565 0.60594331
+ 0.74033445 0.25006566 0.03630189 0.22374021], not re-running
+2022-03-13 20:50:10,291 - LegendreTaperSimulation - INFO - optimizer visited similar [0.83718157 0.85579966 0.40498021 0.59609996 0.81259641 0.6059271
+ 0.7402879  0.25008344 0.03625535 0.22369367], not re-running
+2022-03-13 20:50:10,291 - LegendreTaperSimulation - INFO - optimizer visited similar [0.83717815 0.85580023 0.40497679 0.59609146 0.81259446 0.60592369
+ 0.74027808 0.25008719 0.03624553 0.22368384], not re-running
+2022-03-13 20:50:10,292 - LegendreTaperSimulation - INFO - optimizer visited similar [0.83717743 0.85580035 0.40497607 0.59608967 0.81259404 0.60592296
+ 0.74027601 0.25008799 0.03624345 0.22368177], not re-running
+2022-03-13 20:50:10,292 - LegendreTaperSimulation - INFO - optimizer visited similar [0.83717728 0.85580038 0.40497592 0.59608929 0.81259396 0.60592281
+ 0.74027557 0.25008815 0.03624302 0.22368133], not re-running
+2022-03-13 20:50:10,293 - LegendreTaperSimulation - INFO - optimizer visited similar [0.83717725 0.85580039 0.40497588 0.59608921 0.81259394 0.60592278
+ 0.74027548 0.25008819 0.03624292 0.22368124], not re-running
+2022-03-13 20:50:10,294 - LegendreTaperSimulation - INFO - optimizer visited similar [0.83717724 0.85580039 0.40497588 0.59608919 0.81259393 0.60592277
+ 0.74027546 0.2500882  0.0362429  0.22368122], not re-running
+2022-03-13 20:50:10,294 - LegendreTaperSimulation - INFO - optimizer visited similar [0.83717724 0.85580039 0.40497588 0.59608919 0.81259393 0.60592277
+ 0.74027545 0.2500882  0.0362429  0.22368122], not re-running
+2022-03-13 20:50:10,295 - LegendreTaperSimulation - INFO - optimizer visited similar [0.83717724 0.85580039 0.40497588 0.59608919 0.81259393 0.60592277
+ 0.74027545 0.2500882  0.0362429  0.22368122], not re-running
+2022-03-13 20:50:10,296 - LegendreTaperSimulation - INFO - optimizer visited similar [0.83717724 0.85580039 0.40497588 0.59608919 0.81259393 0.60592277
+ 0.74027545 0.2500882  0.0362429  0.22368122], not re-running
+2022-03-13 20:50:10,296 - LegendreTaperSimulation - INFO - optimizer visited similar [0.83717724 0.85580039 0.40497588 0.59608919 0.81259393 0.60592277
+ 0.74027545 0.2500882  0.0362429  0.22368122], not re-running
+2022-03-13 20:50:10,297 - LegendreTaperSimulation - INFO - optimizer visited similar [0.83717724 0.85580039 0.40497588 0.59608919 0.81259393 0.60592277
+ 0.74027545 0.2500882  0.0362429  0.22368122], not re-running
+2022-03-13 20:50:10,298 - LegendreTaperSimulation - INFO - optimizer visited similar [0.83717724 0.85580039 0.40497588 0.59608919 0.81259393 0.60592277
+ 0.74027545 0.2500882  0.0362429  0.22368122], not re-running
+2022-03-13 20:50:10,298 - LegendreTaperSimulation - INFO - optimizer visited similar [0.83717724 0.85580039 0.40497588 0.59608919 0.81259393 0.60592277
+ 0.74027545 0.2500882  0.0362429  0.22368122], not re-running
+2022-03-13 20:50:10,299 - LegendreTaperSimulation - INFO - optimizer visited similar [0.83717724 0.85580039 0.40497588 0.59608919 0.81259393 0.60592277
+ 0.74027545 0.2500882  0.0362429  0.22368122], not re-running
+2022-03-13 20:50:10,300 - LegendreTaperSimulation - INFO - optimizer visited similar [0.83717724 0.85580039 0.40497588 0.59608919 0.81259393 0.60592277
+ 0.74027545 0.2500882  0.0362429  0.22368122], not re-running
+2022-03-13 21:01:56,208 - LegendreTaperSimulation - INFO - Finished drawing 1/1
+2022-03-13 21:01:56,209 - LegendreTaperSimulation - INFO - Convergence parameters changed, rebuilding simulation
+2022-03-13 21:02:59,424 - LegendreTaperSimulation - INFO - Finished running 1/1
+2022-03-13 21:02:59,503 - LegendreTaperSimulation - INFO - optimizer visited [0.38242804 0.09652586 0.13775946 0.04017514 0.45409832 0.04791439
+ 0.52916214 0.22997464 0.37574651 0.53187561]: -12.727404643127871, [ 8.74311185e+01 -5.90517123e-01  8.81238636e+01  4.37155592e+01
+  5.44482310e-02  8.74311185e+01  2.72241155e-02 -2.53078767e-01
+  8.74311185e+01  2.12765644e-01]
+2022-03-13 21:02:59,504 - LegendreTaperSimulation - INFO - optimizer visited similar [0.38242804 0.09652586 0.13775946 0.04017514 0.45409832 0.04791439
+ 0.52916214 0.22997464 0.37574651 0.53187561], not re-running
+2022-03-13 21:27:17,143 - LegendreTaperSimulation - INFO - Finished drawing 1/1
+2022-03-13 21:27:17,144 - LegendreTaperSimulation - INFO - Convergence parameters changed, rebuilding simulation
+2022-03-13 21:28:18,983 - LegendreTaperSimulation - INFO - Finished running 1/1
+2022-03-13 21:28:19,130 - LegendreTaperSimulation - INFO - optimizer visited [0.87737558 0.39267007 0.84179295 0.82226966 0.31313291 0.31161655
+ 0.02082628 0.89849389 0.60662434 0.79822067]: -14.74417641015225, [-0.00730166 -0.00730166 -0.00730166 -0.00365083  0.01490205  0.00116517
+  0.01556229 -0.00118386  0.01556229 -0.00118386]
+2022-03-13 21:28:19,132 - LegendreTaperSimulation - INFO - optimizer visited similar [0.87737558 0.39267007 0.84179295 0.82226966 0.31313291 0.31161655
+ 0.02082628 0.89849389 0.60662434 0.79822067], not re-running
+2022-03-13 21:59:09,274 - LegendreTaperSimulation - INFO - Finished drawing 1/1
+2022-03-13 21:59:09,275 - LegendreTaperSimulation - INFO - Convergence parameters changed, rebuilding simulation
+2022-03-13 22:00:12,503 - LegendreTaperSimulation - INFO - Finished running 1/1
+2022-03-13 22:00:12,630 - LegendreTaperSimulation - INFO - optimizer visited [0. 1. 0. 0. 0. 0. 0. 0. 0. 0.]: -7.313893072949804, [-0.37194731 -0.         -0.20257243 -0.1893275  -0.23636216 -0.34371688
+ -0.1893275  -0.39075154 -0.1893275  -0.30113031]
+2022-03-13 22:00:12,631 - LegendreTaperSimulation - INFO - Finished drawing 1/1
+2022-03-13 22:00:12,632 - LegendreTaperSimulation - INFO - Convergence parameters did not change
+2022-03-13 22:00:47,632 - LegendreTaperSimulation - INFO - Finished drawing 1/1
+2022-03-13 22:00:47,632 - LegendreTaperSimulation - INFO - Convergence parameters changed, rebuilding simulation
+2022-03-13 22:01:51,524 - LegendreTaperSimulation - INFO - Finished running 1/1
+2022-03-13 22:01:51,662 - LegendreTaperSimulation - INFO - optimizer visited [1. 0. 0. 0. 0. 0. 0. 0. 0. 0.]: -12.770942685046569, [-0.         -0.25259788 -0.40528095 -0.28496514 -0.51694935 -0.48598174
+ -0.40528095 -0.33374972 -0.45406553 -0.48598174]
+2022-03-13 22:01:51,663 - LegendreTaperSimulation - INFO - Finished drawing 1/1
+2022-03-13 22:01:51,663 - LegendreTaperSimulation - INFO - Convergence parameters did not change
+2022-03-13 22:02:56,475 - LegendreTaperSimulation - INFO - Finished running 1/1
+2022-03-13 22:02:56,546 - LegendreTaperSimulation - INFO - optimizer visited [1. 0. 0. 0. 0. 0. 0. 0. 0. 0.]: -12.770942685046569, [-0.         -0.25259788 -0.40528095 -0.28496514 -0.51694935 -0.48598174
+ -0.40528095 -0.33374972 -0.45406553 -0.48598174]
+2022-03-13 22:03:28,442 - LegendreTaperSimulation - INFO - Finished drawing 1/1
+2022-03-13 22:03:28,443 - LegendreTaperSimulation - INFO - Convergence parameters changed, rebuilding simulation
+2022-03-13 22:04:32,879 - LegendreTaperSimulation - INFO - Finished running 1/1
+2022-03-13 22:04:33,003 - LegendreTaperSimulation - INFO - optimizer visited [1. 0. 0. 0. 0. 0. 0. 0. 0. 0.]: 12.770942685046569, [0.         0.25234729 0.40493949 0.28464896 0.51686205 0.48592562
+ 0.40493949 0.33346667 0.4537572  0.48592562]
+2022-03-13 22:04:33,005 - LegendreTaperSimulation - INFO - Finished drawing 1/1
+2022-03-13 22:04:33,005 - LegendreTaperSimulation - INFO - Convergence parameters did not change
+2022-03-13 22:05:38,319 - LegendreTaperSimulation - INFO - Finished running 1/1
+2022-03-13 22:05:38,405 - LegendreTaperSimulation - INFO - optimizer visited [1. 0. 0. 0. 0. 0. 0. 0. 0. 0.]: 12.770942685046569, [0.         0.25259788 0.40528095 0.28496514 0.51694935 0.48598174
+ 0.40528095 0.33374972 0.45406553 0.48598174]
