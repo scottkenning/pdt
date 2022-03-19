@@ -9,3 +9,5 @@ pdt/core/Util.py
 pdt/core/__init__.py
 pdt/opt/Optimization.py
 pdt/opt/__init__.py
+pdt/tools/Render.py
+pdt/tools/__init__.py

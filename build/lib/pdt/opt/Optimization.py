@@ -185,7 +185,7 @@ class LegendreTaperMaterialFunction(MaterialFunction):
             
         # We mutiply everything by a scaling factor to assure that the basis values
         # sum to 1
-        val /= np.sum(beta)
+        #val /= np.sum(beta)
             
         return val
 

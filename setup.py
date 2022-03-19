@@ -19,5 +19,5 @@ setup(name='pdt',
       author='Scott Kenning',
       author_email='skenning@purdue.edu',
       install_requires=[],
-      packages=['pdt.core', 'pdt.opt', 'pdt.tests', 'pdt.docs', 'pdt.backend'],
+      packages=['pdt.core', 'pdt.opt', 'pdt.tests', 'pdt.docs', 'pdt.backend', 'pdt.tools'],
       zip_safe=False)
