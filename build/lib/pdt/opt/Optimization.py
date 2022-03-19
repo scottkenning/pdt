@@ -11,6 +11,41 @@ import matplotlib.pyplot as plt
 import copy
 import matplotlib.pyplot as plt
 
+class MinStepOptimizer:
+    def __init__(self, max_db, grad_switch_tol=180-30):
+        self.max_db = max_db
+        self.grad_switch_tol = grad_switch_tol
+        
+    def maximize(self, func, b0):
+        running = True
+        b = copy.deepcopy(b0)
+        
+        prev_evals = []
+        while running:
+            # Evaluate
+            f, jac, min_db = func(b)
+            
+            # Compute our next move
+            jac_multiplier = np.max(np.abs(min_db) / np.abs(jac)) # How much do we need to multiply the jacobian by to find a new b vector that satisfies all the min_db requirements?
+            new_b = b + jac_multiplier * jac
+            
+            # Assert that the next move is greater than min_db
+            assert((np.abs(new_b - b) > 0.9 * min_db).all()) # eventually replace this with something that is a bit better
+            
+            # End conditions           
+            if (np.abs(new_b - b) > self.max_db).any(): # 1) If the difference in b is greater than max_db -> the simulation is jumping designs too far
+                running = False
+            
+            if len(prev_evals):
+                prev_jac = prev_evals[-1][1]
+                if np.degrees(np.arccos(np.dot(jac / np.linalg.norm(jac), prev_jac / np.linalg.norm(prev_jac)))) > self.grad_switch_tol: # 2) The gradient nearly (nearly) completely switches directions
+                    running = False
+                
+            prev_evals.append((f, jac, min_db, b))
+            b = new_b
+            f_prev = f
+        return b
+
 class MaterialFunction:
     def __init__(self, db_hints: dict[str, (float, float, int)], how_hints=np.linspace):
         self.db_hints = db_hints

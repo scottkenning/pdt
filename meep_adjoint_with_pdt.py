@@ -7,7 +7,7 @@ Created on Wed Mar  2 11:18:16 2022
 """
 
 from pdt.core import Simulation, Util, ParameterChangelog, Result
-from pdt.opt import DesignRegion, MaterialFunction, LegendreTaperMaterialFunction
+from pdt.opt import DesignRegion, MaterialFunction, LegendreTaperMaterialFunction, MinStepOptimizer
 from pdt.tools import Render
 
 import meep as mp
@@ -22,6 +22,8 @@ import copy
 
 import scipy
 
+import h5py as h5
+
 class LegendreTaperSimulation(Simulation):
     def __init__(self, 
                  center_wavelength,
@@ -31,8 +33,9 @@ class LegendreTaperSimulation(Simulation):
                  taper_w1, 
                  taper_w2, 
                  taper_length,
-                 optimize=True):
-        Simulation.__init__(self, "LegendreTaperSimulation", working_dir="lts_working_dir")
+                 optimize=True,
+                 catch_errors=False):
+        Simulation.__init__(self, "LegendreTaperSimulation", working_dir="lts_working_dir", catch_errors=catch_errors)
         
         # Taper parameters
         self.taper_order = taper_order
@@ -70,7 +73,7 @@ class LegendreTaperSimulation(Simulation):
         
         # We now use the changelog class to see if any of the convergence parameters changed
         self.parameter_changelog.updateParameters(parameters)
-        if self.parameter_changelog.changesExclude(["polynomial_coeffs"]): # Rebuild the simulation
+        if (not self.optimize) or self.parameter_changelog.changesExclude(["polynomial_coeffs"]): # Rebuild the simulation
             self._log_info("Convergence parameters changed, rebuilding simulation")
             if self.sim: 
                 # If other simulations have been ran, we reset meep and all other simulation objects
@@ -162,7 +165,7 @@ class LegendreTaperSimulation(Simulation):
                                                    objective_functions=objective_function,
                                                    objective_arguments=ob_list,
                                                    design_regions=[meep_design_region],
-                                                   frequencies=1/np.asarray(self.wavelengths),
+                                                   frequencies=1.0/np.asarray(self.wavelengths),
                                                    decay_by=1e-5,
                                                    minimum_run_time=min_run_time)
             
@@ -191,11 +194,25 @@ class LegendreTaperSimulation(Simulation):
             plt.figure()
             self.sim.plot2D()
             
+            # Input and output monitors
+            input_flux = self.sim.add_flux(1.0/self.center_wavelength, np.max(self.wavelengths) - np.min(self.wavelengths), len(self.wavelengths), mp.FluxRegion(center=input_monitor_pt,size=mp.Vector3(y=sy-2*pml_y_thickness)))
+            output_flux = self.sim.add_flux(1.0/self.center_wavelength, np.max(self.wavelengths) - np.min(self.wavelengths), len(self.wavelengths), mp.FluxRegion(center=output_monitor_pt,size=mp.Vector3(y=sy-2*pml_y_thickness)))
+            
             # Run and collect field data
+            '''
             field_data = []
             collect_fields = lambda mp_sim: field_data.append(mp_sim.get_efield_z())
             self.sim.run(mp.at_every(5, collect_fields), until=min_run_time)
+            '''
+            self.sim.run(until=min_run_time)
                         
+            # Collect and process flux data (for the forward direction)
+            input_coeffs = self.sim.get_eigenmode_coefficients(input_flux,[1],eig_parity=mp.ODD_Z+mp.EVEN_Y).alpha[0, :, 0]
+            output_coeffs = self.sim.get_eigenmode_coefficients(output_flux,[1],eig_parity=mp.ODD_Z+mp.EVEN_Y).alpha[0, :, 0]
+                        
+            transmission = np.abs(output_coeffs)**2 / np.abs(input_coeffs)**2
+            
+            '''
             # Render
             render = Render("lts_working_dir/fields.gif")
             max_field = np.max(np.abs(np.real(field_data)))
@@ -206,18 +223,36 @@ class LegendreTaperSimulation(Simulation):
                 render.add(fig)
                 plt.close()
             render.render(10)
+            '''
             
-            return Result(parameters, field_data=np.asarray(field_data))
+            #return Result(parameters, transmission=transmission, field_data=np.asarray(field_data))
+            return Result(parameters, transmission=transmission)
             
     
     def process(self, result, parameters):
         if self.optimize:
             plt.figure()
             plt.imshow(result.values["dJ_du"])
-            plt.savefig("result.png")
         
         return result # We return this just to assert that we actually do want this data saved
 
+def plot_transmission():
+    with h5.File("lts_working_dir/LegendreTaperSimulation.hdf5", 'r') as f:
+        transmissions = np.asarray([np.mean(f[sim]["transmission"]) for sim in f.keys()])
+        coeffs = np.asarray([f[sim].attrs["polynomial_coeffs"][0] for sim in f.keys()])
+        
+        order = coeffs.argsort()
+        coeffs = coeffs[order]
+        transmissions = transmissions[order]
+        
+        plt.figure()
+        plt.scatter(coeffs, transmissions)
+        plt.savefig("transmission.png")
+        
+        plt.figure()
+        plt.scatter(coeffs[:-1], np.diff(transmissions)/np.diff(coeffs))
+        plt.savefig("dtransmission.png")
+        
 if __name__ == "__main__":
     taper_order = 1
     
@@ -225,19 +260,19 @@ if __name__ == "__main__":
                                   gaussian_width=10,
                                   wavelengths=np.linspace(1.50, 1.60, 3),
                                   taper_order=taper_order, 
-                                  taper_w1=1, 
-                                  taper_w2=5, 
-                                  taper_length=5,
-                                  optimize=True)
+                                  taper_w1=.4, 
+                                  taper_w2=1, 
+                                  taper_length=2,
+                                  optimize=False)
     
     # Test run to make sure everything is ok
     parameters = {
-        "straight_length" : 5,
+        "straight_length" : 3,
         "pml_x_thickness" : 3,
         "pml_y_thickness" : 3,
-        "to_pml_x" : 10,
-        "to_pml_y" : 10,
-        "resolution" : 16,
+        "to_pml_x" : 1,
+        "to_pml_y" : 1,
+        "resolution" : 32,
         "min_run_time" : 300
     }
     
@@ -268,17 +303,36 @@ if __name__ == "__main__":
             min_db = result.values["min_db"]
     
             sim._log_info("optimizer visited {x}: {f0}, {jacobian}".format(x=x, f0=f0, jacobian=jacobian))
+            sim._log_info("min_db: {min_db}".format(min_db=min_db))
                 
         return f0
         
     def jac(x):
         return jacobian
     
-    x0 = [0]*taper_order
-    x0[0] = 0.5
-    if sim.optimize:
-        scipy.optimize.minimize(f, x0, method='CG', jac=jac, options={'gtol': 1e-5})
-    else:
-        parameters["polynomial_coeffs"] = tuple(x0)
-        sim.oneOff(parameters)
+    ms_optimizer = MinStepOptimizer([0.1]*taper_order)
+    def g(x):
+        parameters["polynomial_coeffs"] = tuple(x)
+        result = sim.oneOff(parameters)
+        
+        f0, jacobian, min_db = (result.values["f0"], result.values["dJ_db"], result.values["min_db"])
+        sim._log_info("optimizer visited {x}: {f0}, {jacobian}".format(x=x, f0=f0, jacobian=jacobian))
+                
+        return (result.values["f0"], result.values["dJ_db"], result.values["min_db"])
     
+    x0 = [0]*taper_order
+    x0[0] = .1
+    if sim.optimize:
+        #scipy.optimize.minimize(f, x0, method='CG', jac=jac, options={'gtol': 1e-10})
+        ms_optimizer.maximize(g, x0)
+    else:
+        #parameters["polynomial_coeffs"] = tuple(x0)
+        #sim.oneOff(parameters)
+        
+        for w2 in np.linspace(0, 1, 100):
+            x0[0] = w2
+            parameters["polynomial_coeffs"] = tuple(x0)
+            
+            sim.oneOff(parameters)
+            
+        plot_transmission()

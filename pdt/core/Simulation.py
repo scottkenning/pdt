@@ -128,7 +128,7 @@ to their problem. This class allows the following:
    This stores data that will be automatically saved in the HDF5 format.
 '''
 class Simulation:
-    def __init__(self, logname, working_dir="working_dir"):       
+    def __init__(self, logname, working_dir="working_dir", catch_errors=True):       
         # Working directory
         self.working_dir = working_dir
         if_master(make_path_exist)(working_dir)
@@ -140,6 +140,9 @@ class Simulation:
         # Result file
         self.root_result = None
         self._setup_root_result()
+        
+        # Debug options
+        self.catch_errors = catch_errors
     
     @if_master
     def _setup_logging(logname, working_dir):
@@ -207,37 +210,48 @@ class Simulation:
         # So when we are running alot of simulations, we don't want some random error in one of them to kill this entire process
         # We suppress and log it
         drawn = False
-
-        try:
-            self.draw(iteration_parameters)                    
-            drawn = True
-        except Exception as e:
-            self._log_error("Failed drawing {iteration}/{total_iterations} with exception '{exception}'".format(iteration=iteration, total_iterations=total_iterations, exception=str(e)))
-        else:
-            self._log_info("Finished drawing {iteration}/{total_iterations}".format(iteration=iteration, total_iterations=total_iterations))
         
-        if drawn:
-            result = None
+        if self.catch_errors:
             try:
-                result = self.run(iteration_parameters)                    
+                self.draw(iteration_parameters)                    
+                drawn = True
             except Exception as e:
-                self._log_error("Failed running {iteration}/{total_iterations} with exception '{exception}'".format(iteration=iteration, total_iterations=total_iterations, exception=str(e)))
+                self._log_error("Failed drawing {iteration}/{total_iterations} with exception '{exception}'".format(iteration=iteration, total_iterations=total_iterations, exception=str(e)))
             else:
-                self._log_info("Finished running {iteration}/{total_iterations}".format(iteration=iteration, total_iterations=total_iterations))
+                self._log_info("Finished drawing {iteration}/{total_iterations}".format(iteration=iteration, total_iterations=total_iterations))
             
-            # If a result has been returned from the running, then we can process it and allow the user to modify it
-            if is_master() and result is not None:
-                user_result = None
+            if drawn:
+                result = None
                 try:
-                    user_result = self.process(result, iteration_parameters)
+                    result = self.run(iteration_parameters)                    
                 except Exception as e:
-                    self._log_error("Failed processing {iteration}/{total_iterations} with exception '{exception}'".format(iteration=iteration, total_iterations=total_iterations, exception=str(e)))
-                    result._save(self.root_result, self.logger) # Save what we have, even though the user failed processing it
+                    self._log_error("Failed running {iteration}/{total_iterations} with exception '{exception}'".format(iteration=iteration, total_iterations=total_iterations, exception=str(e)))
                 else:
-                    # If the returned result is not None, we save it and return it
-                    if user_result is not None:
-                        user_result._save(self.root_result, self.logger)
-                        return user_result
+                    self._log_info("Finished running {iteration}/{total_iterations}".format(iteration=iteration, total_iterations=total_iterations))
+                
+                # If a result has been returned from the running, then we can process it and allow the user to modify it
+                if is_master() and result is not None:
+                    user_result = None
+                    try:
+                        user_result = self.process(result, iteration_parameters)
+                    except Exception as e:
+                        self._log_error("Failed processing {iteration}/{total_iterations} with exception '{exception}'".format(iteration=iteration, total_iterations=total_iterations, exception=str(e)))
+                        result._save(self.root_result, self.logger) # Save what we have, even though the user failed processing it
+                    else:
+                        # If the returned result is not None, we save it and return it
+                        if user_result is not None:
+                            user_result._save(self.root_result, self.logger)
+                            return user_result
+        else:
+            self.draw(iteration_parameters)
+            result = self.run(iteration_parameters)
+            
+            if is_master() and result is not None:
+                user_result = self.process(result, iteration_parameters)
+                
+                if user_result is not None:
+                    user_result._save(self.root_result, self.logger)
+                    return user_result
         
     def basicSweep(self, parameters: dict[str, list[typing.Any]]):
         # Provides a basic way to sweep parameters
