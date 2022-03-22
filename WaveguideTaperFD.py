@@ -71,13 +71,14 @@ class LegendreTaperSimulation(Simulation):
         resolution = parameters["resolution"]
         min_run_time = parameters["min_run_time"]
         sigma = parameters["sigma"]
+        fields_decay_by = parameters["fields_decay_by"]
         
         # Optimization parameter(s)
         polynomial_coeffs = parameters["polynomial_coeffs"]
         
         # We now use the changelog class to see if any of the convergence parameters changed
         self.parameter_changelog.updateParameters(parameters)
-        if (not self.optimize) or self.parameter_changelog.changesExclude(["polynomial_coeffs", "sigma"]): # Rebuild the simulation
+        if (not self.optimize) or self.parameter_changelog.changesExclude(["polynomial_coeffs", "sigma", "min_run_time", "fields_decay_by"]): # Rebuild the simulation
             self._log_info("Convergence parameters changed, rebuilding simulation")
             if self.sim: 
                 # If other simulations have been ran, we reset meep and all other simulation objects
@@ -99,7 +100,7 @@ class LegendreTaperSimulation(Simulation):
                                mp.PML(pml_y_thickness, direction=mp.Y)]
             
             # Our device is symmetric, mirror symmetry to speed up computation
-            symmetries = []#[mp.Mirror(mp.Y)]
+            symmetries = [mp.Mirror(mp.Y)]
 
             # Materials
             Si = mp.Medium(index=Si_index)
@@ -132,13 +133,10 @@ class LegendreTaperSimulation(Simulation):
             # Design region setup (specific to MEEP)
             meep_design_variables = mp.MaterialGrid(mp.Vector3(meep_dr_nx,meep_dr_ny),SiO2,Si,grid_type='U_MEAN')
             meep_design_region = mpa.DesignRegion(meep_design_variables,volume=mp.Volume(center=mp.Vector3(), size=mp.Vector3(self.taper_length, self.taper_w2, 0)))
-            
-            if self.optimize:
-                dr_geometry=mp.Block(size=meep_design_region.size, material=meep_design_variables)
-            else:
-                material_function = lambda x: (1.44 + (3.4-1.44)*self.taper(np.asarray([[x[0]], [x[1]]]), params=MaterialFunction.arrayToParams('b', polynomial_coeffs)))**2
-                dr_geometry=mp.Block(size=meep_design_region.size, epsilon_func=material_function)
-            
+
+            # Material function
+            material_function = lambda x: (1.44 + (3.4-1.44)*self.taper(np.asarray([[x[0]], [x[1]]]), params=MaterialFunction.arrayToParams('b', polynomial_coeffs)))**2
+            dr_geometry=mp.Block(size=meep_design_region.size, epsilon_func=material_function)
             
             self.sim = mp.Simulation(resolution=resolution,
                                      cell_size=cell,
@@ -149,103 +147,51 @@ class LegendreTaperSimulation(Simulation):
                                      default_material=SiO2,
                                      symmetries=symmetries)
             
-            if self.optimize:
-                # Adjoint monitors
-                TE0_input = mpa.EigenmodeCoefficient(self.sim, mp.Volume(center=input_monitor_pt, size=mp.Vector3(y=sy-2*pml_y_thickness)), mode=1, forward=True)
-                TE0_output = mpa.EigenmodeCoefficient(self.sim, mp.Volume(center=output_monitor_pt, size=mp.Vector3(y=sy-2*pml_y_thickness)), mode=1, forward=True)
-                ob_list=[TE0_input, TE0_output]
-                
-                def objective_function(TE0_input_coeff, TE0_output_coeff):  
-                    #print("objective_function", TE0_input_coeff.shape, TE0_output_coeff.shape)
-                    #print("objective_function", np.abs(TE0_input_coeff), np.abs(TE0_output_coeff))
-                    # We want to minimize the radiated power, while maximizing the transmitted power
-                    radiated = (npa.abs(TE0_input_coeff)**2) - (npa.abs(TE0_output_coeff)**2) / npa.abs(TE0_input_coeff)**2
-                    transmitted = npa.abs(TE0_output_coeff)**2 / npa.abs(TE0_input_coeff)**2
-                                    
-                    # maximize transmitted - radiated
-                    return npa.mean(transmitted) # Maximize the power in the fundamental mode at the output
-                
-                # MEEP adjoint setup
-                self.opt = mpa.OptimizationProblem(simulation=self.sim, 
-                                                   objective_functions=objective_function,
-                                                   objective_arguments=ob_list,
-                                                   design_regions=[meep_design_region],
-                                                   frequencies=1.0/np.asarray(self.wavelengths),
-                                                   decay_by=1e-9,
-                                                   minimum_run_time=min_run_time)
-            
-            # End reconstruction of the simulation
         else:
             self._log_info("Convergence parameters did not change")
         
-        if self.optimize:
-            # Now we update the design region (meep's) and give it a nice plot
-            design = self.design_region.evalMaterialFunction(self.taper, MaterialFunction.arrayToParams('b', polynomial_coeffs), sigma)
-            self.opt.update_design([design.transpose().flatten()])
-    
-            plt.figure()
-            self.opt.plot2D(True)
-            plt.savefig("lts_working_dir/progress_device.png")
-            
-            # Run the forward and adjoint run
-            f0, dJ_du = (self.opt)()
-            if len(dJ_du.shape) > 1:
-                dJ_du = npa.sum(dJ_du, axis=1)
-            dJ_du = dJ_du.reshape(self.design_region.N).transpose()
-            
-            # Compute the gradient with respect to the taper parameters
-            order, du_db, min_db, all_du_db = self.design_region.evalMaterialFunctionDerivative(self.taper, MaterialFunction.arrayToParams('b', polynomial_coeffs), sigma) # Material function vs taper coefficients
-            dJ_db = np.asarray([np.sum(dJ_du * du_db[i]) for i in range(len(order))])
-                        
-            return Result(parameters, f0=f0, dJ_du=dJ_du, dJ_db=dJ_db, min_db=np.asarray(min_db), all_du_db=all_du_db, wavelengths=self.wavelengths)
-        else:
-            plt.figure()
-            self.sim.plot2D()
-            plt.savefig("lts_working_dir/progress_device.png")
-            
-            
-            # Input and output monitors
-            input_flux = self.sim.add_flux(1.0/self.center_wavelength, np.max(self.wavelengths) - np.min(self.wavelengths), len(self.wavelengths), mp.FluxRegion(center=input_monitor_pt,size=mp.Vector3(y=sy-2*pml_y_thickness)))
-            output_flux = self.sim.add_flux(1.0/self.center_wavelength, np.max(self.wavelengths) - np.min(self.wavelengths), len(self.wavelengths), mp.FluxRegion(center=output_monitor_pt,size=mp.Vector3(y=sy-2*pml_y_thickness)))
-            
-            # Run and collect field data
-            
-            field_data = []
-            collect_fields = lambda mp_sim: field_data.append(mp_sim.get_efield_z())
-            self.sim.run(mp.at_every(5, collect_fields), until=min_run_time)
-            
-                                    
-            # Collect and process flux data (for the forward direction)
-            input_coeffs = self.sim.get_eigenmode_coefficients(input_flux,[1],eig_parity=mp.ODD_Z+mp.EVEN_Y).alpha[0, :, 0]
-            output_coeffs = self.sim.get_eigenmode_coefficients(output_flux,[1],eig_parity=mp.ODD_Z+mp.EVEN_Y).alpha[0, :, 0]
-                        
-            transmission = np.abs(output_coeffs)**2 / np.abs(input_coeffs)**2
-            
-            
-            # Render
-            render = Render("lts_working_dir/fields.gif")
-            max_field = np.max(np.abs(np.real(field_data)))
-            for data in field_data:
-                fig = plt.figure()
-                plt.imshow(self.sim.get_epsilon().transpose(), interpolation='spline36', cmap='Greys')
-                plt.imshow(np.real(data).transpose(), vmin=-max_field, vmax=max_field, interpolation='spline36', cmap='RdBu', alpha=0.9)
-                render.add(fig)
-                plt.close()
-            render.render(10)
-            
-            
-            #return Result(parameters, transmission=transmission, field_data=np.asarray(field_data))
-            return Result(parameters, transmission=transmission)
-            
-    
-    def process(self, result, parameters):
-        if self.optimize:
-            plt.figure()
-            plt.title("{polynomial_coeffs}".format(polynomial_coeffs=parameters["polynomial_coeffs"]))
-            plt.imshow(result.values["dJ_du"])
-            
-            plt.savefig("lts_working_dir/progress_adjoint.png")
         
+        # Input and output monitors
+        input_flux = self.sim.add_flux(1.0/self.center_wavelength, np.max(self.wavelengths) - np.min(self.wavelengths), len(self.wavelengths), mp.FluxRegion(center=input_monitor_pt,size=mp.Vector3(y=sy-2*pml_y_thickness)))
+        output_flux = self.sim.add_flux(1.0/self.center_wavelength, np.max(self.wavelengths) - np.min(self.wavelengths), len(self.wavelengths), mp.FluxRegion(center=output_monitor_pt,size=mp.Vector3(y=sy-2*pml_y_thickness)))
+        
+        # Show it
+        plt.figure()
+        self.sim.plot2D()
+        plt.savefig("lts_working_dir/progress_device.png")
+        
+        # Run and collect field data
+        
+        field_data = []
+        collect_fields = lambda mp_sim: field_data.append(mp_sim.get_efield_z())
+        self.sim.run(mp.at_every(5, collect_fields), 
+                     until_after_sources=mp.stop_when_fields_decayed(min_run_time,mp.Ez,output_monitor_pt,fields_decay_by))
+        
+                                
+        # Collect and process flux data (for the forward direction)
+        input_coeffs = self.sim.get_eigenmode_coefficients(input_flux,[1],eig_parity=mp.ODD_Z+mp.EVEN_Y).alpha[0, :, 0]
+        output_coeffs = self.sim.get_eigenmode_coefficients(output_flux,[1],eig_parity=mp.ODD_Z+mp.EVEN_Y).alpha[0, :, 0]
+                    
+        transmission = np.abs(output_coeffs)**2 / np.abs(input_coeffs)**2
+        
+        
+        # Render
+        render = Render("lts_working_dir/fields.gif")
+        max_field = np.max(np.abs(np.real(field_data)))
+        for data in field_data:
+            fig = plt.figure()
+            plt.imshow(self.sim.get_epsilon().transpose(), interpolation='spline36', cmap='Greys')
+            plt.imshow(np.real(data).transpose(), vmin=-max_field, vmax=max_field, interpolation='spline36', cmap='RdBu', alpha=0.9)
+            render.add(fig)
+            plt.close()
+        render.render(10)
+        
+        
+        #return Result(parameters, transmission=transmission, field_data=np.asarray(field_data))
+        return Result(parameters, transmission=transmission)
+            
+    
+    def process(self, result, parameters):       
         return result # We return this just to assert that we actually do want this data saved  
       
 if __name__ == "__main__":
@@ -257,18 +203,18 @@ if __name__ == "__main__":
                                   taper_order=taper_order, 
                                   taper_w1=.4, 
                                   taper_w2=1, 
-                                  taper_length=2,
-                                  optimize=True)
+                                  taper_length=2)
     
     # Test run to make sure everything is ok
     parameters = {
-        "straight_length" : 10,
-        "pml_x_thickness" : 3,
-        "pml_y_thickness" : 3,
-        "to_pml_x" : 3,
-        "to_pml_y" : 3,
-        "resolution" : 64,
+        "straight_length" : 3,
+        "pml_x_thickness" : 1,
+        "pml_y_thickness" : 1,
+        "to_pml_x" : 1,
+        "to_pml_y" : 1,
+        "resolution" : 20,
         "min_run_time" : 300,
+        "fields_decay_by" : 1e-9,
         "sigma" : 0
     }
     
@@ -282,40 +228,6 @@ if __name__ == "__main__":
         sim._log_info("optimizer visited {x}: {f0}, {jacobian}".format(x=x, f0=f0, jacobian=jacobian))
                 
         return (result.values["f0"], result.values["dJ_db"], result.values["min_db"])
-    
-    f0 = None
-    jacobian = None
-    x_prev = None
-    min_db = None
-    def f(x):
-        global f0 # bad
-        global jacobian # bad
-        global x_prev # bad
-        global min_db # bad
-        
-        if (min_db is not None) and (np.abs(x - x_prev) < min_db).all():
-            sim._log_info("optimizer visited similar {x}, not re-running".format(x=x))
-            return f0
-        else:
-            # Update the parameters
-            parameters["polynomial_coeffs"] = tuple(x)
-            
-            # Run it        
-            result = sim.oneOff(parameters)
-            
-            # We want to maximize the transmission, so we negate everything
-            f0 = - result.values["f0"]
-            jacobian = - result.values["dJ_db"]
-            x_prev = x
-            min_db = result.values["min_db"]
-    
-            sim._log_info("optimizer visited {x}: {f0}, {jacobian}".format(x=x, f0=f0, jacobian=jacobian))
-            sim._log_info("min_db: {min_db}".format(min_db=min_db))
-                
-        return f0
-        
-    def jac(x):
-        return jacobian
     
     
     x0 = [0]*taper_order
