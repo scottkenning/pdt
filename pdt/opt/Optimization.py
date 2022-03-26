@@ -350,10 +350,6 @@ class LegendreTaperMaterialFunction(MaterialFunction):
         for i in range(self.order):
             val += beta[i] * eval_basis(i)
             
-        # We mutiply everything by a scaling factor to assure that the basis values
-        # sum to 1
-        #val /= np.sum(beta)
-            
         return val
     
 def test_all():
