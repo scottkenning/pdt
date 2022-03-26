@@ -98,7 +98,7 @@ def plot_data(fname):
             for i in range(all_du_db.shape[0]):
                 dJ_db_i = np.squeeze(np.asarray([dJ_du * all_du_db[i,:,:]]))
                 
-                fig, (ax1, ax2, ax3, ax4) = plt.subplots(nrows=4)
+                fig, (ax1, ax2, ax3, ax4) = plt.subplots(nrows=4, dpi=300)
                 ax1.set_title("{coeff}:{i}:{dJ_db_i}".format(coeff=round(coeff, 2), i=i, dJ_db_i=round(np.sum(dJ_db_i), 10)))
                 ax1.imshow(dJ_db_i)
                 ax2.imshow(dJ_du)

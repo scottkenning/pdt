@@ -88,6 +88,12 @@ class MaterialFunction:
         for i, a in enumerate(arr):
             params["{b}{i}".format(b=base, i=i)] = a
         return params
+    
+    def paramListHelper(count: int, base: str):
+        l = []
+        for i in range(count):
+            l.append("{b}{i}".format(b=base, i=i))
+        return l
 
 class DesignRegion:
     def __init__(self, size, N):
@@ -214,21 +220,64 @@ class ScipyGradientOptimizer:
         self.fom = fom
         self.opt_parameters = opt_parameters
         self.method = method
+        self.strategy = strategy
         
         self.prev_run_results = dict()
+      
+    def _scipy_to_pdt(self, start_parameters, b):
+        # Convert from scipy parameter format to pdt format
+        params = copy.deepcopy(start_parameters)
+        for i, opt_parameter in enumerate(self.opt_parameters):
+            params[opt_parameter] = b[i]
+        return params
+    
+    def optimize(self, start_parameters: dict[str, float], **kwargs):
+        start_b = list(self._get_opt_parameters(start_parameters).values())
         
-    def optimize(self, guess_b: dict[str, float]):
-        pass
-                
+        self.sim._log_info("optimizer starting at {start_b}".format(start_b=start_b))
+        
+        def apply_strategy(val):
+            if self.strategy == "minimize":
+                return val
+            elif self.strategy == "maximize":
+                return -val
+            else:
+                raise ValueError("Unknown optimization strategy of {strategy}".format(strategy=self.strategy))
+        
+        # Scipy compatible objective and jacobian functions, with logging included
+        def _objective(b):
+            #self.sim._log_info("optimizer evaluating objective at {b}...".format(b=b))
+            # Set up the parameters to be passed to the objective function
+            params = self._scipy_to_pdt(start_parameters, b)
+            
+            f0 = self.objective(params)
+            
+            return apply_strategy(f0)
+        
+        def _jacobian(b):
+            #self.sim._log_info("optimizer evaluating jac at {b}...".format(b=b))
+            # Set up the parameters to be passed to the objective function
+            params = self._scipy_to_pdt(start_parameters, b)
+            
+            jac = self.jacobian(params)
+            
+            return apply_strategy(jac)
+        
+        # Now we call the scipy optimization routine
+        sciopt.minimize(_objective, start_b, jac=_jacobian, **kwargs)
+            
     def objective(self, params):
+        f0 = None
         if Util.hash_parameter_iteration(params) in self.prev_run_results.keys():
-            return self.prev_run_results[Util.hash_parameter_iteration(params)]
+            f0 = self.prev_run_results[Util.hash_parameter_iteration(params)]
         else:
             result = self.sim.oneOff(params)
-            self.prev_run_results[Util.hash_parameter_iteration(params)] = result.values[self.fom]
+            self.prev_run_results[Util.hash_parameter_iteration(params)] = result.values[self.fom]            
+            f0 = result.values[self.fom]
             
-            return result.values[self.fom]
-        
+        self.sim._log_info("optimizer evaluated {b}: f0={f0}".format(b=self._get_opt_parameters(params), f0=f0))
+        return f0
+
     def _get_opt_parameters(self, params):
         b = dict()
         for opt_parameter in self.opt_parameters:
@@ -251,7 +300,7 @@ class ScipyGradientOptimizer:
         
         # Get the minimum db
         b = self._get_opt_parameters(params)        
-        order, _, min_db, _ = self.design_region.evalMaterialFunctionDerivative(b)
+        order, _, min_db, _ = self.design_region.evalMaterialFunctionDerivative(self.design, b, 0)
         
         # Perturb the optimization parameters
         delta_params = self._perturb_opt_parameters(params, order, min_db)
@@ -261,17 +310,18 @@ class ScipyGradientOptimizer:
         for i, parameter in enumerate(order):
             b_i = self._get_opt_parameters(delta_params[i])
             db_i = min_db[i]
-            f0_i = self.objective(b_i)
+            f0_i = self.objective(delta_params[i])
             
             df_db.append((f0_i - f0) / db_i)
-            
+        
+        self.sim._log_info("optimizer evaluated {b}: jac={jac}".format(b=b, jac=df_db))
         return np.asarray(df_db)
             
 
 from scipy.special import legendre
 class LegendreTaperMaterialFunction(MaterialFunction):
     def __init__(self, order, dim, w1, w2):
-        MaterialFunction.__init__(self, db_hints=MaterialFunction.hintHelper(count=order, base='b', prototype=(.3, 1, 100)))
+        MaterialFunction.__init__(self, db_hints=MaterialFunction.hintHelper(count=order, base='b', prototype=(0, 1, 100)))
         self.order = order
         self.dim = dim    
         

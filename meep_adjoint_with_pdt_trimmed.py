@@ -34,13 +34,13 @@ taper_order=1
 taper_w1=.4
 taper_w2=1
 taper_length=2
-straight_length=10
-pml_x_thickness=3
-pml_y_thickness=3
-to_pml_x=3
-to_pml_y=3
-resolution=20
-min_run_time=2000
+straight_length=5
+pml_x_thickness=1
+pml_y_thickness=1
+to_pml_x=1
+to_pml_y=1
+resolution=64
+min_run_time=200
 
  
 # Taper parameters
@@ -86,15 +86,17 @@ small_wg = mp.Block(mp.Vector3(actual_L_straight, taper_w1), center=mp.Vector3(-
 large_wg = mp.Block(mp.Vector3(actual_L_straight, taper_w2), center=mp.Vector3(taper_length/2 + actual_L_straight/2, 0), material=Si)
 
 # Sources and such
+parity = mp.ODD_Y + mp.EVEN_Z
+
 input_monitor_pt = mp.Vector3(-0.5 * (taper_length + straight_length), 0)
 source_pt = mp.Vector3(-0.5 * taper_length - 0.75 * straight_length, 0)
 output_monitor_pt = mp.Vector3(0.5 * (taper_length + straight_length), 0)
 
 sources = [mp.EigenModeSource(src=mp.GaussianSource(1/center_wavelength, width=gaussian_width),
                               center=source_pt,
-                              size=mp.Vector3(y=sy-2*pml_y_thickness),
+                              size=mp.Vector3(y=(sy-2*pml_y_thickness)),
                               eig_match_freq=True,
-                              eig_parity=mp.ODD_Z+mp.EVEN_Y)]
+                              eig_parity=parity)]
 
 # Design region setup (using the pdt tools)
 meep_dr_nx = int(resolution * taper_length)
@@ -104,7 +106,7 @@ taper = LegendreTaperMaterialFunction(taper_order, [taper_length, taper_w2], tap
 design_region = DesignRegion([taper_length, taper_w2], [meep_dr_nx, meep_dr_ny])
 
 # Design region setup (specific to MEEP)
-meep_design_variables = mp.MaterialGrid(mp.Vector3(meep_dr_nx,meep_dr_ny),SiO2,Si,grid_type='U_MEAN')
+meep_design_variables = mp.MaterialGrid(mp.Vector3(meep_dr_nx,meep_dr_ny),SiO2,Si,grid_type='U_DEFAULT')
 meep_design_region = mpa.DesignRegion(meep_design_variables,volume=mp.Volume(center=mp.Vector3(), size=mp.Vector3(taper_length, taper_w2, 0)))
 
 dr_geometry=mp.Block(size=meep_design_region.size, material=meep_design_variables)
@@ -118,8 +120,8 @@ sim = mp.Simulation(resolution=resolution,
                     default_material=SiO2,
                     symmetries=symmetries)
 
-TE0_input = mpa.EigenmodeCoefficient(sim, mp.Volume(center=input_monitor_pt, size=mp.Vector3(y=sy-2*pml_y_thickness)), mode=1, forward=True)
-TE0_output = mpa.EigenmodeCoefficient(sim, mp.Volume(center=output_monitor_pt, size=mp.Vector3(y=sy-2*pml_y_thickness)), mode=1, forward=True)
+TE0_input = mpa.EigenmodeCoefficient(sim, mp.Volume(center=input_monitor_pt, size=mp.Vector3(y=(sy-2*pml_y_thickness))), mode=1, eig_parity=parity, forward=True)
+TE0_output = mpa.EigenmodeCoefficient(sim, mp.Volume(center=output_monitor_pt, size=mp.Vector3(y=(sy-2*pml_y_thickness))), mode=1, eig_parity=parity, forward=True)
 ob_list=[TE0_input, TE0_output]
 
 def objective_function(TE0_input_coeff, TE0_output_coeff):  
@@ -141,8 +143,8 @@ opt = mpa.OptimizationProblem(simulation=sim,
                                    decay_by=1e-9,
                                    minimum_run_time=min_run_time)
 
-polynomial_coeffs = (1,)
-sigma = 2
+polynomial_coeffs = (0,)
+sigma = 0
 
 # Now we update the design region (meep's) and give it a nice plot
 design = design_region.evalMaterialFunction(taper, MaterialFunction.arrayToParams('b', polynomial_coeffs), sigma)
@@ -166,9 +168,16 @@ dJ_db = np.asarray([np.sum(dJ_du * du_db[i]) for i in range(len(order))])
 plt.figure()
 plt.title("{polynomial_coeffs}".format(polynomial_coeffs=polynomial_coeffs))
 plt.imshow(dJ_du)
+plt.colorbar()
 
 plt.savefig("lts_working_dir/progress_adjoint.png")
         
 print(dJ_db)
 
-        
+dJ_du_corrected = copy.deepcopy(dJ_du)
+dJ_du_corrected[np.abs(dJ_du_corrected) > 1] = 0
+
+plt.figure()
+plt.title("{polynomial_coeffs}".format(polynomial_coeffs=polynomial_coeffs))
+plt.imshow(dJ_du_corrected)
+plt.colorbar()

@@ -26,6 +26,7 @@ import h5py as h5
 
 Si_index = 3.4
 SiO2_index = 1.44
+parity = mp.ODD_Y + mp.EVEN_Z
 
 class LegendreTaperSimulation(Simulation):
     def __init__(self, 
@@ -120,7 +121,7 @@ class LegendreTaperSimulation(Simulation):
                                           center=source_pt,
                                           size=mp.Vector3(y=sy-2*pml_y_thickness),
                                           eig_match_freq=True,
-                                          eig_parity=mp.ODD_Z+mp.EVEN_Y)]
+                                          eig_parity=parity)]
             
             # Design region setup (using the pdt tools)
             meep_dr_nx = int(resolution * self.taper_length)
@@ -151,8 +152,8 @@ class LegendreTaperSimulation(Simulation):
             
             if self.optimize:
                 # Adjoint monitors
-                TE0_input = mpa.EigenmodeCoefficient(self.sim, mp.Volume(center=input_monitor_pt, size=mp.Vector3(y=sy-2*pml_y_thickness)), mode=1, forward=True)
-                TE0_output = mpa.EigenmodeCoefficient(self.sim, mp.Volume(center=output_monitor_pt, size=mp.Vector3(y=sy-2*pml_y_thickness)), mode=1, forward=True)
+                TE0_input = mpa.EigenmodeCoefficient(self.sim, mp.Volume(center=input_monitor_pt, size=mp.Vector3(y=sy-2*pml_y_thickness)), mode=1, eig_parity=parity, forward=True)
+                TE0_output = mpa.EigenmodeCoefficient(self.sim, mp.Volume(center=output_monitor_pt, size=mp.Vector3(y=sy-2*pml_y_thickness)), mode=1, eig_parity=parity, forward=True)
                 ob_list=[TE0_input, TE0_output]
                 
                 def objective_function(TE0_input_coeff, TE0_output_coeff):  
@@ -249,11 +250,11 @@ class LegendreTaperSimulation(Simulation):
         return result # We return this just to assert that we actually do want this data saved  
       
 if __name__ == "__main__":
-    taper_order = 1
+    taper_order = 5
     
     sim = LegendreTaperSimulation(center_wavelength=1.55,
-                                  gaussian_width=50,
-                                  wavelengths=np.asarray([1.55]),#np.linspace(1.50, 1.60, 3),
+                                  gaussian_width=5,
+                                  wavelengths=np.linspace(1.50, 1.60, 3),
                                   taper_order=taper_order, 
                                   taper_w1=.4, 
                                   taper_w2=1, 
@@ -262,13 +263,13 @@ if __name__ == "__main__":
     
     # Test run to make sure everything is ok
     parameters = {
-        "straight_length" : 10,
-        "pml_x_thickness" : 3,
-        "pml_y_thickness" : 3,
-        "to_pml_x" : 3,
-        "to_pml_y" : 3,
-        "resolution" : 64,
-        "min_run_time" : 300,
+        "straight_length" : 5,
+        "pml_x_thickness" : 1,
+        "pml_y_thickness" : 1,
+        "to_pml_x" : 1,
+        "to_pml_y" : 1,
+        "resolution" : 32,
+        "min_run_time" : 100,
         "sigma" : 0
     }
     
@@ -293,25 +294,21 @@ if __name__ == "__main__":
         global x_prev # bad
         global min_db # bad
         
-        if (min_db is not None) and (np.abs(x - x_prev) < min_db).all():
-            sim._log_info("optimizer visited similar {x}, not re-running".format(x=x))
-            return f0
-        else:
-            # Update the parameters
-            parameters["polynomial_coeffs"] = tuple(x)
+        # Update the parameters
+        parameters["polynomial_coeffs"] = tuple(x)
+        
+        # Run it        
+        result = sim.oneOff(parameters)
+        
+        # We want to maximize the transmission, so we negate everything
+        f0 = - result.values["f0"]
+        jacobian = - result.values["dJ_db"]
+        x_prev = x
+        min_db = result.values["min_db"]
+
+        sim._log_info("optimizer visited {x}: {f0}, {jacobian}".format(x=x, f0=f0, jacobian=jacobian))
+        sim._log_info("min_db: {min_db}".format(min_db=min_db))
             
-            # Run it        
-            result = sim.oneOff(parameters)
-            
-            # We want to maximize the transmission, so we negate everything
-            f0 = - result.values["f0"]
-            jacobian = - result.values["dJ_db"]
-            x_prev = x
-            min_db = result.values["min_db"]
-    
-            sim._log_info("optimizer visited {x}: {f0}, {jacobian}".format(x=x, f0=f0, jacobian=jacobian))
-            sim._log_info("min_db: {min_db}".format(min_db=min_db))
-                
         return f0
         
     def jac(x):
@@ -319,18 +316,20 @@ if __name__ == "__main__":
     
     
     x0 = [0]*taper_order
-    x0[0] = 1
+    x0[0] = 0.5
     if sim.optimize:
-        #scipy.optimize.minimize(f, x0, method='CG', jac=jac, options={'gtol': 1e-10})
+        scipy.optimize.minimize(f, x0, method='BFGS', jac=jac, options={'gtol': 1e-10})
         #ms_optimizer.maximize(g, x0)
         
+        '''
         parameters["polynomial_coeffs"] = tuple(x0)
         sim.oneOff(parameters)
+        '''
         
         '''
         prev_f0 = None
         prev_w2 = None
-        for w2 in np.linspace(.3, 1, 10):
+        for w2 in np.linspace(0, 1, 10):
             x0[0] = w2
             parameters["polynomial_coeffs"] = tuple(x0)
             
@@ -344,9 +343,8 @@ if __name__ == "__main__":
                 sim._log_info("visited {w2}: f0={f0}, jac={jacobian}".format(w2=w2, f0=f0, jacobian=jacobian))
                 
             prev_f0 = f0
-            prev_w2 = w2
+            prev_w2 = w2       
         '''
-            
     else:
         parameters["polynomial_coeffs"] = tuple(x0)
         sim.oneOff(parameters)
