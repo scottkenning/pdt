@@ -1,1 +1,0 @@
-from pdt.opt.Optimization import DesignRegion, MaterialFunction, LegendreTaperMaterialFunction, MinStepOptimizer, ScipyGradientOptimizer

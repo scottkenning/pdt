@@ -1,1 +1,4 @@
 *_working_dir/
+pdt.egg-info/
+dist/
+build/
