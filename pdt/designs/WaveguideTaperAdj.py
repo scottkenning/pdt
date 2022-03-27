@@ -7,8 +7,8 @@ Created on Wed Mar  2 11:18:16 2022
 """
 
 from pdt.core import Simulation, Util, ParameterChangelog, Result
-from pdt.opt import DesignRegion, MaterialFunction, LegendreTaperMaterialFunction, MinStepOptimizer
-from pdt.tools import Render
+from pdt.opt import DesignRegion, MaterialFunction, LegendreTaperMaterialFunction, MinStepOptimizer, ScipyGradientOptimizer
+from pdt.tools import Render, ProgressRender
 
 import meep as mp
 import meep.adjoint as mpa
@@ -49,6 +49,11 @@ class LegendreTaperSimulation(Simulation):
         self.opt = None
         self.taper = None
         self.design_region = None
+        
+    def getCurrentDesign(self):
+        return self.taper
+    def getCurrentDesignRegion(self):
+        return self.design_region
 
     def run(self, parameters):
         # Some constants
@@ -64,14 +69,14 @@ class LegendreTaperSimulation(Simulation):
         to_pml_y = parameters["to_pml_y"]
         resolution = parameters["resolution"]
         min_run_time = parameters["min_run_time"]
-        sigma = parameters["sigma"]
+        sigma = 0
         
         # Optimization parameter(s)
-        polynomial_coeffs = parameters["polynomial_coeffs"]
+        polynomial_coeffs = MaterialFunction.paramsToArray(self.taper_order, "b", parameters)
         
         # We now use the changelog class to see if any of the convergence parameters changed
         self.parameter_changelog.updateParameters(parameters)
-        if self.parameter_changelog.changesExclude(["polynomial_coeffs", "sigma"]): # Rebuild the simulation
+        if self.parameter_changelog.changesExclude(MaterialFunction.paramListHelper(self.taper_order, "b")): # Rebuild the simulation
             self._log_info("Convergence parameters changed, rebuilding simulation")
             if self.sim: 
                 # If other simulations have been ran, we reset meep and all other simulation objects
@@ -169,10 +174,13 @@ class LegendreTaperSimulation(Simulation):
         # Now we update the design region (meep's) and give it a nice plot
         design = self.design_region.evalMaterialFunction(self.taper, MaterialFunction.arrayToParams('b', polynomial_coeffs), sigma)
         self.opt.update_design([design.transpose().flatten()])
-
+        
+        # Plot the design
         plt.figure()
         self.opt.plot2D(True)
-        plt.savefig("lts_working_dir/progress_device.png")
+        if Util.is_master():
+            plt.savefig("{working_dir}/progress_device.png".format(working_dir=self.working_dir))
+        plt.close()
         
         # Run the forward and adjoint run
         f0, dJ_du = (self.opt)()
@@ -197,10 +205,10 @@ if __name__ == "__main__":
                                   wavelengths=np.linspace(1.50, 1.60, 3),
                                   taper_order=taper_order, 
                                   taper_w1=.4, 
-                                  taper_w2=1, 
-                                  taper_length=2)
+                                  taper_w2=2, 
+                                  taper_length=3)
     
-    # Test run to make sure everything is ok
+    # Set up the simulation parameters/convergence parameters
     parameters = {
         "straight_length" : 5,
         "pml_x_thickness" : 1,
@@ -208,44 +216,24 @@ if __name__ == "__main__":
         "to_pml_x" : 1,
         "to_pml_y" : 1,
         "resolution" : 32,
-        "min_run_time" : 100,
-        "sigma" : 0
+        "min_run_time" : 100
     }
+    for bi in MaterialFunction.paramListHelper(taper_order, "b"):
+        parameters[bi] = 0
+    parameters["b0"] = 1 # We start with a linear taper, and see if we can improve on it!
     
-    f0 = None
-    jacobian = None
-    x_prev = None
-    min_db = None
-    def f(x):
-        global f0 # bad
-        global jacobian # bad
-        global x_prev # bad
-        global min_db # bad
-        
-        # Update the parameters
-        parameters["polynomial_coeffs"] = tuple(x)
-        
-        # Run it        
-        result = sim.oneOff(parameters)
-        
-        # We want to maximize the transmission, so we negate everything
-        f0 = - result.values["f0"]
-        jacobian = - result.values["dJ_db"]
-        x_prev = x
-        min_db = result.values["min_db"]
-
-        sim._log_info("optimizer visited {x}: {f0}, {jacobian}".format(x=x, f0=f0, jacobian=jacobian))
-        sim._log_info("min_db: {min_db}".format(min_db=min_db))
-            
-        return f0
-        
-    def jac(x):
-        return jacobian
+    # Optimizer setup   
+    scigro = ScipyGradientOptimizer(sim, 
+                                    sim.getCurrentDesignRegion, 
+                                    sim.getCurrentDesign, 
+                                    fom="f0", 
+                                    jac="dJ_db", 
+                                    opt_parameters=MaterialFunction.paramListHelper(taper_order, "b"), 
+                                    strategy="maximize")
+    
+    scigro.optimize(parameters, progress_render_fname="progress.gif", progress_render_fig_kwargs=dict(figsize=(10, 15), dpi=200), progress_render_duration=1000)
     
     
-    x0 = [0]*taper_order
-    x0[0] = 0.5
-    scipy.optimize.minimize(f, x0, method='BFGS', jac=jac, options={'gtol': 1e-10})
 
-
+    
         

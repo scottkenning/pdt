@@ -14,6 +14,7 @@ from scipy.ndimage import gaussian_filter
 import scipy.optimize as sciopt
 from pdt.core.Simulation import Simulation
 import pdt.core.Util as Util
+from pdt.tools.Render import Render, ProgressRender
 
 class MinStepOptimizer:
     def __init__(self, max_db, grad_switch_tol=180-30):
@@ -139,16 +140,22 @@ class DesignRegion:
     def evalMaterialFunction(self, mat_func, x: dict[str, float], sigma):
         return gaussian_filter(mat_func(self.x_grid, x), sigma)
     
-    def plotMaterialFunction(self, mat_func, x: dict[str, float], sigma):
+    def plotMaterialFunction(self, mat_func, x: dict[str, float], sigma, ax=None):
         if self.dim != 2:
             raise ValueError("Cannot plotMaterialFunction unless dimensionality of the design region is 2")
-            
-        plt.figure()
-        plt.title("material function")
-        plt.imshow(self.evalMaterialFunction(mat_func, x, sigma), extent=(-self.size[0]/2, self.size[0]/2, -self.size[1]/2, self.size[1]/2))
-        plt.colorbar()
-        plt.xlabel("x")
-        plt.ylabel("y")
+        
+        if ax:
+            ax.set_title("material function")
+            ax.imshow(self.evalMaterialFunction(mat_func, x, sigma), extent=(-self.size[0]/2, self.size[0]/2, -self.size[1]/2, self.size[1]/2))
+            ax.set_xlabel("x")
+            ax.set_ylabel("y")
+        else:
+            plt.figure()
+            plt.title("material function")
+            plt.imshow(self.evalMaterialFunction(mat_func, x, sigma), extent=(-self.size[0]/2, self.size[0]/2, -self.size[1]/2, self.size[1]/2))
+            plt.colorbar()
+            plt.xlabel("x")
+            plt.ylabel("y")
         
     def plotMaterialFunctionDerivative(self, mat_func,  x: dict[str, float], sigma):
         order, du_db = self.evalMaterialFunctionDerivative(mat_func, x, sigma)
@@ -213,11 +220,12 @@ class DesignRegion:
         return order, du_db, min_db, np.asarray(all_du_db)
 
 class ScipyGradientOptimizer:
-    def __init__(self, sim: Simulation, design_region: DesignRegion, design: MaterialFunction, fom: str, opt_parameters: list[str], method="L-BFGS-B", strategy="minimize"):
+    def __init__(self, sim: Simulation, design_region, design, fom: str, jac: str, opt_parameters: list[str], method="L-BFGS-B", strategy="minimize"):
         self.sim = sim
-        self.design_region = design_region
-        self.design = design
+        self.design_region = design_region # Function that returns the currently active design region!
+        self.design = design # Function that returns the currently active design!
         self.fom = fom
+        self.jac = jac
         self.opt_parameters = opt_parameters
         self.method = method
         self.strategy = strategy
@@ -231,7 +239,7 @@ class ScipyGradientOptimizer:
             params[opt_parameter] = b[i]
         return params
     
-    def optimize(self, start_parameters: dict[str, float], **kwargs):
+    def optimize(self, start_parameters: dict[str, float], progress_render_fname=None, progress_render_fig_kwargs=dict(), progress_render_fancy=True, progress_render_duration=10, **kwargs):
         start_b = list(self._get_opt_parameters(start_parameters).values())
         
         self.sim._log_info("optimizer starting at {start_b}".format(start_b=start_b))
@@ -244,13 +252,20 @@ class ScipyGradientOptimizer:
             else:
                 raise ValueError("Unknown optimization strategy of {strategy}".format(strategy=self.strategy))
         
+        progress_render = None
+        if progress_render_fname:
+            progress_render = ProgressRender("{working_dir}/{fname}".format(working_dir=self.sim.working_dir, fname=progress_render_fname), self.opt_parameters, **progress_render_fig_kwargs)
+        
         # Scipy compatible objective and jacobian functions, with logging included
         def _objective(b):
             #self.sim._log_info("optimizer evaluating objective at {b}...".format(b=b))
             # Set up the parameters to be passed to the objective function
             params = self._scipy_to_pdt(start_parameters, b)
             
-            f0 = self.objective(params)
+            if self.jac:
+                f0, _ = self.objective(params)
+            else:
+                f0 = self.objective(params)
             
             return apply_strategy(f0)
         
@@ -259,8 +274,15 @@ class ScipyGradientOptimizer:
             # Set up the parameters to be passed to the objective function
             params = self._scipy_to_pdt(start_parameters, b)
             
-            jac = self.jacobian(params)
-            
+            f0, jac = self.jacobian(params)
+            if progress_render:
+                progress_render.add(b, f0, jac)
+                
+                if progress_render_fancy:
+                    progress_render.renderWithDesignEvolution((self.design_region)(), (self.design)(), progress_render_duration)
+                else:
+                    progress_render.renderCurrent()
+                    
             return apply_strategy(jac)
         
         # Now we call the scipy optimization routine
@@ -268,15 +290,29 @@ class ScipyGradientOptimizer:
             
     def objective(self, params):
         f0 = None
+        jac = None
         if Util.hash_parameter_iteration(params) in self.prev_run_results.keys():
-            f0 = self.prev_run_results[Util.hash_parameter_iteration(params)]
+            if self.jac:
+                f0, jac = self.prev_run_results[Util.hash_parameter_iteration(params)]
+            else:
+                f0 = self.prev_run_results[Util.hash_parameter_iteration(params)]
         else:
             result = self.sim.oneOff(params)
-            self.prev_run_results[Util.hash_parameter_iteration(params)] = result.values[self.fom]            
-            f0 = result.values[self.fom]
             
-        self.sim._log_info("optimizer evaluated {b}: f0={f0}".format(b=self._get_opt_parameters(params), f0=f0))
-        return f0
+            if self.jac:
+                self.prev_run_results[Util.hash_parameter_iteration(params)] = (result.values[self.fom], result.values[self.jac])
+                f0 = result.values[self.fom]
+                jac = result.values[self.jac]
+            else:
+                self.prev_run_results[Util.hash_parameter_iteration(params)] = result.values[self.fom]            
+                f0 = result.values[self.fom]
+            
+        if self.jac:
+            self.sim._log_info("optimizer evaluated {b}: f0={f0}, jac={jac}".format(b=self._get_opt_parameters(params), f0=f0, jac=jac))
+            return f0, jac
+        else:
+            self.sim._log_info("optimizer evaluated {b}: f0={f0}".format(b=self._get_opt_parameters(params), f0=f0))
+            return f0
 
     def _get_opt_parameters(self, params):
         b = dict()
@@ -296,28 +332,32 @@ class ScipyGradientOptimizer:
         return perturbations
     
     def jacobian(self, params):
-        f0 = self.objective(params)
-        
-        # Get the minimum db
-        b = self._get_opt_parameters(params)        
-        order, _, min_db, _ = self.design_region.evalMaterialFunctionDerivative(self.design, b, 0)
-        
-        # Perturb the optimization parameters
-        delta_params = self._perturb_opt_parameters(params, order, min_db)
-        
-        # Compute the jacobian
-        df_db = []
-        for i, parameter in enumerate(order):
-            b_i = self._get_opt_parameters(delta_params[i])
-            db_i = min_db[i]
-            f0_i = self.objective(delta_params[i])
+        if self.jac:
+            f0, jac = self.objective(params)
+            return f0, jac
+        else: # Default to finite difference
+            f0 = self.objective(params)
             
-            df_db.append((f0_i - f0) / db_i)
-        
-        self.sim._log_info("optimizer evaluated {b}: jac={jac}".format(b=b, jac=df_db))
-        return np.asarray(df_db)
+            # Get the minimum db
+            b = self._get_opt_parameters(params)        
+            order, _, min_db, _ = (self.design_region)().evalMaterialFunctionDerivative((self.design)(), b, 0)
             
-
+            # Perturb the optimization parameters
+            delta_params = self._perturb_opt_parameters(params, order, min_db)
+            
+            # Compute the jacobian
+            df_db = []
+            for i, parameter in enumerate(order):
+                b_i = self._get_opt_parameters(delta_params[i])
+                db_i = min_db[i]
+                f0_i = self.objective(delta_params[i])
+                
+                df_db.append((f0_i - f0) / db_i)
+            
+            self.sim._log_info("optimizer evaluated {b}: jac={jac}".format(b=b, jac=df_db))
+            return f0, df_db
+            
+# A nice demonstration example. Taper boundaries are defined by the odd Legendre Polynomials
 from scipy.special import legendre
 class LegendreTaperMaterialFunction(MaterialFunction):
     def __init__(self, order, dim, w1, w2):
@@ -351,19 +391,3 @@ class LegendreTaperMaterialFunction(MaterialFunction):
             val += beta[i] * eval_basis(i)
             
         return val
-    
-def test_all():
-    dr = DesignRegion([10, 5], [1000, 500])
-    ltmf = LegendreTaperMaterialFunction(3, (10, 5), 1, 5)
-    
-    params = {'b0': 1,
-              'b1': 0,
-              'b2': 0
-             }
-    
-    dr.plotMaterialFunction(ltmf, params, 7)    
-    
-
-if __name__ == "__main__":
-    test_all()
-    
