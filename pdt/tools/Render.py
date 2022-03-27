@@ -84,7 +84,7 @@ class ProgressRender:
     def renderWithDesignEvolution(self, design_region, design, duration):
         render = Render(self.fname)
         
-        for i in range(2, len(self.frames)):
+        for i in range(1, len(self.frames)):
             fig, (ax0, ax1, ax2, ax3) = plt.subplots(nrows=4, **self.fig_options)
             
             # Draw the design
