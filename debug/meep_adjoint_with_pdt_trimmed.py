@@ -106,7 +106,7 @@ taper = LegendreTaperMaterialFunction(taper_order, [taper_length, taper_w2], tap
 design_region = DesignRegion([taper_length, taper_w2], [meep_dr_nx, meep_dr_ny])
 
 # Design region setup (specific to MEEP)
-meep_design_variables = mp.MaterialGrid(mp.Vector3(meep_dr_nx,meep_dr_ny),SiO2,Si,grid_type='U_DEFAULT')
+meep_design_variables = mp.MaterialGrid(mp.Vector3(meep_dr_nx,meep_dr_ny),SiO2,Si,grid_type='U_MIN')
 meep_design_region = mpa.DesignRegion(meep_design_variables,volume=mp.Volume(center=mp.Vector3(), size=mp.Vector3(taper_length, taper_w2, 0)))
 
 dr_geometry=mp.Block(size=meep_design_region.size, material=meep_design_variables)
