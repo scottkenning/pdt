@@ -302,11 +302,12 @@ class ScipyGradientOptimizer:
             if self.jac:
                 self.prev_run_results[Util.hash_parameter_iteration(params)] = (result.values[self.fom], result.values[self.jac])
                 f0 = result.values[self.fom]
-                jac = result.values[self.jac]
+                jac = np.asarray(result.values[self.jac])
             else:
                 self.prev_run_results[Util.hash_parameter_iteration(params)] = result.values[self.fom]            
                 f0 = result.values[self.fom]
-            
+        f0 = np.asarray(f0)
+        
         if self.jac:
             self.sim._log_info("optimizer evaluated {b}: f0={f0}, jac={jac}".format(b=self._get_opt_parameters(params), f0=f0, jac=jac))
             return f0, jac
@@ -353,6 +354,7 @@ class ScipyGradientOptimizer:
                 f0_i = self.objective(delta_params[i])
                 
                 df_db.append((f0_i - f0) / db_i)
+            df_db = np.asarray(df_db)
             
             self.sim._log_info("optimizer evaluated {b}: jac={jac}".format(b=b, jac=df_db))
             return f0, df_db
