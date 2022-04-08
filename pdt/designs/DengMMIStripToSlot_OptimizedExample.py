@@ -129,7 +129,7 @@ class DengSymMMIStripToSlot(MaterialFunction):
 # %%% Simulation setup %%% 
 class DengSymMMIStripToSlotSimulation(Simulation):
     def __init__(self,
-                 fname="DengMMIStripToSlot",
+                 fname="DengMMIStripToSlot_FullyOptimized",
                  taper_order=1,
                  ridge_order=1,
                  strip_width=0.400,
@@ -367,7 +367,7 @@ if __name__ == "__main__":
     opt_parameters.extend(MaterialFunction.paramListHelper(ridge_order, "ridge"))
 
     # Simulate our design    
-    sim = DengSymMMIStripToSlotSimulation(fname="DengMMIStripToSlot_FD",
+    sim = DengSymMMIStripToSlotSimulation(fname="DengMMIStripToSlot_FullyOptimized",
                                           taper_order=taper_order,
                                           ridge_order=ridge_order,
                                           opt_parameters=opt_parameters,
@@ -400,10 +400,9 @@ if __name__ == "__main__":
                                        sim.getCurrentDesignRegion, 
                                        sim.getCurrentDesign, 
                                        "f0", 
-                                       "dJ_db", 
+                                       None, 
                                        opt_parameters, 
-                                       strategy="maximize",
-                                       debug_gradient=False)
+                                       strategy="maximize")
     optimizer.optimize(parameters, 
                        progress_render_fname="progress_fd.gif", 
                        progress_render_fig_kwargs=dict(figsize=(10, 15)), 

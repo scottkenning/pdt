@@ -40,12 +40,12 @@ class DengSymMMIStripToSlot(MaterialFunction):
         
         # Placeholders for now
         db_hints = {
-            "mmi_width" : (.01, device_length, 10),
-            "mmi_length" : (.01, device_length, 10),
-            "input_ridge_runup" : (.01, device_length, 10)
+            "mmi_width" : (.1, device_length, 10),
+            "mmi_length" : (.1, device_length, 10),
+            "input_ridge_runup" : (.1, device_length, 10)
             }
-        db_hints.update(MaterialFunction.hintHelper(taper_order, "taper", (.01, device_length, 10)))
-        db_hints.update(MaterialFunction.hintHelper(ridge_order, "ridge", (.01, device_length, 10)))
+        db_hints.update(MaterialFunction.hintHelper(taper_order, "taper", (.1, device_length, 10)))
+        db_hints.update(MaterialFunction.hintHelper(ridge_order, "ridge", (.1, device_length, 10)))
         MaterialFunction.__init__(self, db_hints=db_hints)
         
         # Primary values
@@ -138,7 +138,7 @@ class DengSymMMIStripToSlotSimulation(Simulation):
                  mat_height=0.250,
                  ridge_height=0.040,
                  center_wavelength=1.55,
-                 wavelengths=np.linspace(1.50, 1.60, 3),
+                 wavelengths=[1.55],
                  gaussian_width=10,
                  opt_parameters=[],
                  catch_errors=False):
@@ -265,7 +265,7 @@ class DengSymMMIStripToSlotSimulation(Simulation):
             self.design_region = DesignRegion([device_length, device_width], [meep_dr_nx, meep_dr_ny])
             
             # Design region setup (specific to MEEP)
-            meep_design_variables = mp.MaterialGrid(mp.Vector3(meep_dr_nx,meep_dr_ny),SiO2,Si,grid_type="U_MEAN")
+            meep_design_variables = mp.MaterialGrid(mp.Vector3(meep_dr_nx,meep_dr_ny),SiO2,Si,grid_type="U_MEAN", beta=0)
             meep_design_region = mpa.DesignRegion(meep_design_variables,volume=mp.Volume(center=mp.Vector3(), size=mp.Vector3(device_length, device_width, 0)))
     
             dr_geometry=mp.Block(size=meep_design_region.size, material=meep_design_variables)
@@ -309,7 +309,8 @@ class DengSymMMIStripToSlotSimulation(Simulation):
                                                design_regions=[meep_design_region],
                                                frequencies=1.0/np.asarray(self.wavelengths),
                                                decay_by=1e-9,
-                                               minimum_run_time=min_run_time)
+                                               minimum_run_time=min_run_time,
+                                               finite_difference_step=1e-3)
             
         else:
             self._log_info("Convergence parameters did not change")        
@@ -317,6 +318,10 @@ class DengSymMMIStripToSlotSimulation(Simulation):
         # Now we update the design region (meep's) and give it a nice plot
         design = self.design_region.evalMaterialFunction(self.converter, opt_parameter_dict, sigma)
         self.opt.update_design([design.transpose().flatten()])
+        
+        plt.figure()
+        self.opt.plot2D(True)
+        plt.savefig("{working_dir}/progress.png".format(working_dir=self.working_dir))
 
         if supply_gradient:
             # Run the forward and adjoint run
@@ -328,6 +333,7 @@ class DengSymMMIStripToSlotSimulation(Simulation):
             plt.figure()
             plt.imshow(dJ_du)
             plt.colorbar()
+            plt.savefig("{working_dir}/adjoint.png".format(working_dir=self.working_dir))
             
             # Compute the gradient with respect to the taper parameters
             order, du_db, min_db, all_du_db = self.design_region.evalMaterialFunctionDerivative(self.converter, opt_parameter_dict, sigma) # Material function vs taper coefficients
@@ -339,7 +345,7 @@ class DengSymMMIStripToSlotSimulation(Simulation):
                 all_dJ_db.append(np.asarray([np.sum(dJ_du * all_du_db[i][j]) for j in range(len(order))]).flatten())
             all_dJ_db = np.asarray(all_dJ_db)
             
-            return Result(parameters, f0=f0, dJ_du=dJ_du, dJ_db=dJ_db*10, min_db=np.asarray(min_db), all_du_db=all_du_db, all_dJ_du=all_dJ_db, wavelengths=self.wavelengths)
+            return Result(parameters, f0=f0, dJ_du=dJ_du, dJ_db=dJ_db, min_db=np.asarray(min_db), all_du_db=all_du_db, all_dJ_du=all_dJ_db, wavelengths=self.wavelengths)
         else:
             self.opt.forward_run()
             return Result(parameters, f0=self.opt.f0)
@@ -356,8 +362,8 @@ if __name__ == "__main__":
     device_width = 3
     
     # Starting stuff
-    mmi_length_start = 1
-    mmi_width_start = 1
+    mmi_length_start = 0.1#1.38
+    mmi_width_start = 0.5#1.24
     input_ridge_runup_start = 1
 
     # Parameters to optimize over
@@ -366,7 +372,7 @@ if __name__ == "__main__":
     opt_parameters.extend(MaterialFunction.paramListHelper(ridge_order, "ridge"))
 
     # Simulate our design    
-    sim = DengSymMMIStripToSlotSimulation(fname="DengMMIStripToSlot_Debug",
+    sim = DengSymMMIStripToSlotSimulation(fname="DengMMIStripToSlot",
                                           taper_order=taper_order,
                                           ridge_order=ridge_order,
                                           opt_parameters=opt_parameters)
@@ -377,7 +383,7 @@ if __name__ == "__main__":
         "pml_y_thickness" : 1,
         "to_pml_x" : 1,
         "to_pml_y" : 1,
-        "resolution" : 32,
+        "resolution" : 16,
         "min_run_time" : 100,
         "fields_decay_by" : 1e-9,
         "device_length" : device_length,
@@ -411,3 +417,16 @@ if __name__ == "__main__":
                        progress_render_fig_kwargs=dict(figsize=(10, 15)), 
                        progress_render_duration=1000, 
                        options=dict(maxls=1, maxfun=10, maxiter=10))
+
+'''
+adjoint large step size:
+    jac=[-2.42547988e-03  9.64607670e-05  4.04789799e-02 -2.53528525e-03
+ -1.72889053e-03 -1.90737341e-02 -6.44385882e-03 -5.42830500e-03
+ -2.88149899e-03]
+
+adjoint small step size:
+    jac=[-1.92435283e-05 -5.20465123e-05 -1.92435283e-05 -3.68370574e-05
+ -1.16419895e-05 -2.58872396e-05 -5.88848704e-06  4.20188756e-06
+ -1.11045224e-06]
+
+'''
