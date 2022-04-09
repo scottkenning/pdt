@@ -6,7 +6,7 @@ Created on Sun Mar 20 18:47:42 2022
 @author: skenning
 """
 
-from pdt.core import Simulation, Util, ParameterChangelog, Result
+from pdt.core import Simulation, Util, ParameterChangelog, Result, PreviousResults
 from pdt.opt import DesignRegion, MaterialFunction, LegendreTaperMaterialFunction, MinStepOptimizer, ScipyGradientOptimizer
 from pdt.tools import Render
 
@@ -349,6 +349,18 @@ class DengSymMMIStripToSlotSimulation(Simulation):
     def process(self, result, parameters):
         return result
 
+def getBestParameters():
+    pr = PreviousResults("DengMMIStripToSlot_FullyOptimized", "WD_DengMMIStripToSlot")
+    
+    def objective(f0):
+        return f0[()] # get the scalar data out of the HDF5 Dataset
+    best = pr.getBestParameters("f0", objective, True)
+    
+    if best:
+        print(best)
+    else:
+        print("no previous simulation data found")
+
 if __name__ == "__main__":
     # Constraints
     ridge_order = 6
@@ -358,9 +370,9 @@ if __name__ == "__main__":
     device_width = 3
     
     # Starting stuff
-    mmi_length_start = 1.3713601005677936
-    mmi_width_start = 1.2408719389231215
-    input_ridge_runup_start = 0.9913601005677959
+    mmi_length_start = 1.5105908845768972
+    mmi_width_start = 1.2348919835671635
+    input_ridge_runup_start = 0.971693787817385
 
     # Parameters to optimize over
     opt_parameters = ["mmi_length", "mmi_width", "input_ridge_runup"]
@@ -388,19 +400,19 @@ if __name__ == "__main__":
         "mmi_width" : mmi_width_start,
         "input_ridge_runup" : input_ridge_runup_start
     }            
-    parameters["taper0"] = 0.931948576214864
-    parameters["taper1"] = -0.040670797779299835
-    parameters["taper2"] = 0.11390603692982108
-    parameters["taper3"] = -6.002825214196141e-08
-    parameters["taper4"] = -2.5445488537801523e-07
-    parameters["taper5"] = -1.0803559286830875e-07
+    parameters["taper0"] = 0.9021119655340561
+    parameters["taper1"] = -0.08428701016776316
+    parameters["taper2"] = 0.11430007438318053
+    parameters["taper3"] = 0.10761002720219011
+    parameters["taper4"] = -0.0013348235027730664
+    parameters["taper5"] = 0.0709900709595109
     
-    parameters["ridge0"] = 0.2512514535658623
-    parameters["ridge1"] = 0.07073012222147963
-    parameters["ridge2"] = 0.04798363263771774
-    parameters["ridge3"] = 0.009999967092770437
-    parameters["ridge4"] = -1.4806616146489353e-07
-    parameters["ridge5"] = -4.2435981359668765e-08
+    parameters["ridge0"] = 0.2413633177815396
+    parameters["ridge1"] = 0.06633052252799512
+    parameters["ridge2"] = 0.017760119131602414
+    parameters["ridge3"] = 0.007371613603654596
+    parameters["ridge4"] = -0.003687412447180049
+    parameters["ridge5"] = -0.003566452717740043
         
     optimizer = ScipyGradientOptimizer(sim, 
                                        sim.getCurrentDesignRegion, 
