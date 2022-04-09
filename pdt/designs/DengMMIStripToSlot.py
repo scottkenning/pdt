@@ -122,7 +122,7 @@ class DengSymMMIStripToSlot(MaterialFunction):
             w += self.strip_width / 2
             return w
         
-        val[~full_height_mask & (np.abs(y) < ridge_w(x))] = effective_index
+        val[ridge_mask & (np.abs(y) < ridge_w(x))] = effective_index
         
         return val
     
@@ -409,10 +409,11 @@ if __name__ == "__main__":
                                        sim.getCurrentDesignRegion, 
                                        sim.getCurrentDesign, 
                                        "f0", 
-                                       None, 
+                                       "dJ_db", 
                                        opt_parameters, 
                                        strategy="maximize")
     optimizer.optimize(parameters, 
+                       finite_difference=True,
                        progress_render_fname="progress_debug.gif", 
                        progress_render_fig_kwargs=dict(figsize=(10, 15)), 
                        progress_render_duration=1000, 

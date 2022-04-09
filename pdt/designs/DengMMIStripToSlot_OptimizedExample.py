@@ -122,7 +122,7 @@ class DengSymMMIStripToSlot(MaterialFunction):
             w += self.strip_width / 2
             return w
         
-        val[~full_height_mask & (np.abs(y) < ridge_w(x))] = effective_index
+        val[ridge_mask & (np.abs(y) < ridge_w(x))] = effective_index
         
         return val
     
@@ -199,6 +199,7 @@ class DengSymMMIStripToSlotSimulation(Simulation):
         device_width = parameters["device_width"]
         min_run_time = parameters["min_run_time"]
         fields_decay_by = parameters["fields_decay_by"]
+        include_jac = parameters["include_jac"]
         sigma = 0
         
         # Geometry parameters
@@ -319,7 +320,7 @@ class DengSymMMIStripToSlotSimulation(Simulation):
         design = self.design_region.evalMaterialFunction(self.converter, opt_parameter_dict, sigma)
         self.opt.update_design([design.transpose().flatten()])
 
-        if self.adjoint:
+        if include_jac:
             # Run the forward and adjoint run
             f0, dJ_du = (self.opt)()
             if len(dJ_du.shape) > 1:
@@ -350,16 +351,16 @@ class DengSymMMIStripToSlotSimulation(Simulation):
 
 if __name__ == "__main__":
     # Constraints
-    ridge_order = 3
-    taper_order = 3
+    ridge_order = 6
+    taper_order = 6
 
     device_length = 6
     device_width = 3
     
     # Starting stuff
-    mmi_length_start = 1.3703606665094048
-    mmi_width_start = 1.2262420878983613
-    input_ridge_runup_start = 0.9903606665094069
+    mmi_length_start = 1.3713601005677936
+    mmi_width_start = 1.2408719389231215
+    input_ridge_runup_start = 0.9913601005677959
 
     # Parameters to optimize over
     opt_parameters = ["mmi_length", "mmi_width", "input_ridge_runup"]
@@ -370,8 +371,7 @@ if __name__ == "__main__":
     sim = DengSymMMIStripToSlotSimulation(fname="DengMMIStripToSlot_FullyOptimized",
                                           taper_order=taper_order,
                                           ridge_order=ridge_order,
-                                          opt_parameters=opt_parameters,
-                                          adjoint=True)
+                                          opt_parameters=opt_parameters)
 
     parameters = {
         "straight_length" : 3,
@@ -388,22 +388,29 @@ if __name__ == "__main__":
         "mmi_width" : mmi_width_start,
         "input_ridge_runup" : input_ridge_runup_start
     }            
-    parameters["taper0"] = 0.9176234202305144
-    parameters["taper1"] = -0.03872437933884382
-    parameters["taper2"] = 0.10424438618372302
+    parameters["taper0"] = 0.931948576214864
+    parameters["taper1"] = -0.040670797779299835
+    parameters["taper2"] = 0.11390603692982108
+    parameters["taper3"] = -6.002825214196141e-08
+    parameters["taper4"] = -2.5445488537801523e-07
+    parameters["taper5"] = -1.0803559286830875e-07
     
-    parameters["ridge0"] = 0.2653903280627021
-    parameters["ridge1"] = 0.07854529973651792
-    parameters["ridge2"] = 0.057375073385052565
+    parameters["ridge0"] = 0.2512514535658623
+    parameters["ridge1"] = 0.07073012222147963
+    parameters["ridge2"] = 0.04798363263771774
+    parameters["ridge3"] = 0.009999967092770437
+    parameters["ridge4"] = -1.4806616146489353e-07
+    parameters["ridge5"] = -4.2435981359668765e-08
         
     optimizer = ScipyGradientOptimizer(sim, 
                                        sim.getCurrentDesignRegion, 
                                        sim.getCurrentDesign, 
                                        "f0", 
-                                       None, 
+                                       "dJ_db", 
                                        opt_parameters, 
                                        strategy="maximize")
     optimizer.optimize(parameters, 
+                       finite_difference=True,
                        progress_render_fname="progress_fd.gif", 
                        progress_render_fig_kwargs=dict(figsize=(10, 15)), 
                        progress_render_duration=1000, 

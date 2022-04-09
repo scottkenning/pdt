@@ -220,7 +220,7 @@ class DesignRegion:
         return order, du_db, min_db, np.asarray(all_du_db)
 
 class ScipyGradientOptimizer:
-    def __init__(self, sim: Simulation, design_region, design, fom: str, jac: str, opt_parameters: list[str], method="L-BFGS-B", strategy="minimize"):
+    def __init__(self, sim: Simulation, design_region, design, fom: str, jac: str, opt_parameters: list[str], method="L-BFGS-B", strategy="minimize", include_jac_key="include_jac"):
         self.sim = sim
         self.design_region = design_region # Function that returns the currently active design region!
         self.design = design # Function that returns the currently active design!
@@ -229,6 +229,7 @@ class ScipyGradientOptimizer:
         self.opt_parameters = opt_parameters
         self.method = method
         self.strategy = strategy
+        self.include_jac_key = include_jac_key
         
         self.prev_run_results = dict()
       
@@ -239,81 +240,93 @@ class ScipyGradientOptimizer:
             params[opt_parameter] = b[i]
         return params
     
-    def optimize(self, start_parameters: dict[str, float], progress_render_fname=None, progress_render_fig_kwargs=dict(), progress_render_fancy=True, progress_render_duration=10, **kwargs):
+    def _apply_strategy(self, val):
+        val = np.asarray(val)
+        if self.strategy == "minimize":
+            return val
+        elif self.strategy == "maximize":
+            return -val
+        else:
+            raise ValueError("Unknown optimization strategy of {strategy}".format(strategy=self.strategy))
+            
+    def _strip_objective_rvalue(rvalue, include_jac):
+        if include_jac:
+            return rvalue
+        else:
+            if isinstance(rvalue, tuple):
+                return rvalue[0]
+            else:
+                return rvalue
+    
+    def _make_render(self, progress_render_fname, progress_render_fig_kwargs):
+        if progress_render_fname:
+            return ProgressRender("{working_dir}/{fname}".format(working_dir=self.sim.working_dir, fname=progress_render_fname), self.opt_parameters, **progress_render_fig_kwargs)
+        else:
+            return None
+    
+    def _render(self, progress_render, b, f0, jac, progress_render_fancy, progress_render_duration):
+        if progress_render:
+            progress_render.add(b, f0, jac)
+            
+            if progress_render_fancy:
+                progress_render.renderWithDesignEvolution((self.design_region)(), (self.design)(), progress_render_duration)
+            else:
+                progress_render.renderCurrent()
+    
+    def optimize(self, start_parameters: dict[str, float], finite_difference, progress_render_fname=None, progress_render_fig_kwargs=dict(), progress_render_fancy=True, progress_render_duration=10, **kwargs):
         start_b = list(self._get_opt_parameters(start_parameters).values())
         
         self.sim._log_info("optimizer starting at {start_b}".format(start_b=start_b))
-        
-        def apply_strategy(val):
-            if self.strategy == "minimize":
-                return val
-            elif self.strategy == "maximize":
-                return -val
-            else:
-                raise ValueError("Unknown optimization strategy of {strategy}".format(strategy=self.strategy))
-        
-        progress_render = None
-        if progress_render_fname:
-            progress_render = ProgressRender("{working_dir}/{fname}".format(working_dir=self.sim.working_dir, fname=progress_render_fname), self.opt_parameters, **progress_render_fig_kwargs)
-        
+        progress_render = self._make_render(progress_render_fname, progress_render_fig_kwargs)
+
         # Scipy compatible objective and jacobian functions, with logging included
         def _objective(b):
-            #self.sim._log_info("optimizer evaluating objective at {b}...".format(b=b))
-            # Set up the parameters to be passed to the objective function
             params = self._scipy_to_pdt(start_parameters, b)
-            
-            if self.jac:
-                f0, _ = self.objective(params)
-            else:
-                f0 = self.objective(params)
-            
-            return apply_strategy(f0)
+            f0 = ScipyGradientOptimizer._strip_objective_rvalue(self.objective(params, not finite_difference), False)
+            return self._apply_strategy(f0)
         
         def _jacobian(b):
-            #self.sim._log_info("optimizer evaluating jac at {b}...".format(b=b))
-            # Set up the parameters to be passed to the objective function
             params = self._scipy_to_pdt(start_parameters, b)
-            
-            f0, jac = self.jacobian(params)
-            if progress_render:
-                progress_render.add(b, f0, jac)
-                
-                if progress_render_fancy:
-                    progress_render.renderWithDesignEvolution((self.design_region)(), (self.design)(), progress_render_duration)
-                else:
-                    progress_render.renderCurrent()
-                    
-            return apply_strategy(jac)
+            f0, jac = self.jacobian(params, finite_difference)
+            self._render(progress_render, b, f0, jac, progress_render_fancy, progress_render_duration)
+            return self._apply_strategy(jac)
         
         # Now we call the scipy optimization routine
         sciopt.minimize(_objective, start_b, jac=_jacobian, **kwargs)
             
-    def objective(self, params):
-        f0 = None
-        jac = None
+    def objective(self, params, include_jac):
         if Util.hash_parameter_iteration(params) in self.prev_run_results.keys():
-            if self.jac:
-                f0, jac = self.prev_run_results[Util.hash_parameter_iteration(params)]
+            if include_jac:
+                prev_result = self.prev_run_results[Util.hash_parameter_iteration(params)]
+                
+                if isinstance(prev_result, tuple):
+                    return ScipyGradientOptimizer._strip_objective_rvalue(prev_result, True)
+                else:
+                    pass # The function will not return and will go and perform a new run
+                        
             else:
-                f0 = self.prev_run_results[Util.hash_parameter_iteration(params)]
-        else:
-            result = self.sim.oneOff(params)
-            
-            if self.jac:
-                self.prev_run_results[Util.hash_parameter_iteration(params)] = (result.values[self.fom], result.values[self.jac])
-                f0 = result.values[self.fom]
-                jac = np.asarray(result.values[self.jac])
-            else:
-                self.prev_run_results[Util.hash_parameter_iteration(params)] = result.values[self.fom]            
-                f0 = result.values[self.fom]
-        f0 = np.asarray(f0)
+                prev_result = self.prev_run_results[Util.hash_parameter_iteration(params)]
+                return ScipyGradientOptimizer._strip_objective_rvalue(prev_result, False)
+                
+        # New run
+        new_run_params = copy.deepcopy(params)
+        new_run_params[self.include_jac_key] = include_jac
+        result = self.sim.oneOff(new_run_params)
         
-        if self.jac:
-            self.sim._log_info("optimizer evaluated {b}: f0={f0}, jac={jac}".format(b=self._get_opt_parameters(params), f0=f0, jac=jac))
+        if include_jac:            
+            self.prev_run_results[Util.hash_parameter_iteration(params)] = (result.values[self.fom], result.values[self.jac])
+            f0 = np.asarray(result.values[self.fom])
+            jac = np.asarray(result.values[self.jac])
+            self.sim._log_info("optimizer evaluated {b}: f0={f0}".format(b=self._get_opt_parameters(params), f0=f0))
+            
             return f0, jac
         else:
+            self.prev_run_results[Util.hash_parameter_iteration(params)] = result.values[self.fom]            
+            f0 = np.asarray(result.values[self.fom])            
             self.sim._log_info("optimizer evaluated {b}: f0={f0}".format(b=self._get_opt_parameters(params), f0=f0))
+            
             return f0
+        
 
     def _get_opt_parameters(self, params):
         b = dict()
@@ -332,12 +345,9 @@ class ScipyGradientOptimizer:
             
         return perturbations
     
-    def jacobian(self, params):
-        if self.jac:
-            f0, jac = self.objective(params)
-            return f0, jac
-        else: # Default to finite difference
-            f0 = self.objective(params)
+    def jacobian(self, params, finite_difference):
+        if finite_difference:
+            f0 = self.objective(params, False)
             
             # Get the minimum db
             b = self._get_opt_parameters(params)        
@@ -351,13 +361,16 @@ class ScipyGradientOptimizer:
             for i, parameter in enumerate(order):
                 b_i = self._get_opt_parameters(delta_params[i])
                 db_i = min_db[i]
-                f0_i = self.objective(delta_params[i])
+                f0_i = self.objective(delta_params[i], False)
                 
                 df_db.append((f0_i - f0) / db_i)
             df_db = np.asarray(df_db)
             
             self.sim._log_info("optimizer evaluated {b}: jac={jac}".format(b=b, jac=df_db))
             return f0, df_db
+        else: 
+            f0, jac = self.objective(params, True)
+            return f0, jac
             
 # A nice demonstration example. Taper boundaries are defined by the odd Legendre Polynomials
 from scipy.special import legendre
@@ -393,3 +406,5 @@ class LegendreTaperMaterialFunction(MaterialFunction):
             val += beta[i] * eval_basis(i)
             
         return val
+    
+    
