@@ -235,17 +235,17 @@ class Simulation:
                             if user_result is not None:
                                 user_result._save(root_result, self.logger)
                                 return user_result
-                else:
-                    self.draw(iteration_parameters)
-                    result = self.run(iteration_parameters)
+            else:
+                self.draw(iteration_parameters)
+                result = self.run(iteration_parameters)
+                
+                if result is not None:
+                    user_result = self.process(result, iteration_parameters)
                     
-                    if result is not None:
-                        user_result = self.process(result, iteration_parameters)
-                        
-                        if user_result is not None:
-                            user_result._save(root_result, self.logger)
-                            return user_result
-        
+                    if user_result is not None:
+                        user_result._save(root_result, self.logger)
+                        return user_result
+    
         # We determine whether or not to pass the root_result file to the core code (only should occur on master process)
         if is_master():
             with h5py.File('{working_dir}/{logname}.hdf5'.format(working_dir=self.working_dir, logname=self.logname), 'a') as root_result:
@@ -302,12 +302,15 @@ class PreviousResults:
                                     best = sim_name
                         else:
                             best = sim_name
-                    except:
+                    except Exception as e:
+                        print(e)
+                        print("not present in {sim_name}".format(sim_name=sim_name))
                         pass # Not present in that simulation
                 
                 if best:
-                    return root_results[best].attrs
+                    return dict(root_result[best].attrs)
                 else:
                     return None
-        except:
+        except Exception as e:
+            print(e)
             return None

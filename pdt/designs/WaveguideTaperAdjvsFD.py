@@ -62,16 +62,16 @@ class LegendreTaperSimulation(Simulation):
         parity = mp.ODD_Y + mp.EVEN_Z
         
         # Convergence parameters (included with the parameter list so automated convergence testing can change them around)
-        straight_length = parameters["straight_length"]
-        pml_x_thickness = parameters["pml_x_thickness"]
-        pml_y_thickness = parameters["pml_y_thickness"]
-        to_pml_x = parameters["to_pml_x"]
-        to_pml_y = parameters["to_pml_y"]
-        resolution = parameters["resolution"]
-        min_run_time = parameters["min_run_time"]
+        straight_length = float(parameters["straight_length"])
+        pml_x_thickness = float(parameters["pml_x_thickness"])
+        pml_y_thickness = float(parameters["pml_y_thickness"])
+        to_pml_x = float(parameters["to_pml_x"])
+        to_pml_y = float(parameters["to_pml_y"])
+        resolution = int(parameters["resolution"])
+        min_run_time = int(parameters["min_run_time"])
         include_jac = parameters["include_jac"]
         sigma = 0
-        
+                
         # Optimization parameter(s)
         polynomial_coeffs = MaterialFunction.paramsToArray(self.taper_order, "b", parameters)
         
@@ -209,28 +209,31 @@ if __name__ == "__main__":
                                   taper_length=1)
     
     # Start from the best simulation logged to the HDF5 file
-    '''
     pr = PreviousResults("WaveguideTaperAdjvsFD", "WD_WaveguideTaperAdjvsFD")
     def pr_objective(f0):
-        return float(f0)
+        return f0[()] # Retrive "scalar" data from the HDF5
     previous_best_parameters = pr.getBestParameters("f0", pr_objective, True)
-    print(previous_best_parameters)
-    '''
     
-    # Set up the simulation parameters/convergence parameters
-    parameters = {
-        "straight_length" : 5,
-        "pml_x_thickness" : 1,
-        "pml_y_thickness" : 1,
-        "to_pml_x" : 1,
-        "to_pml_y" : 1,
-        "resolution" : 16,
-        "min_run_time" : 100
-    }
-    for bi in MaterialFunction.paramListHelper(taper_order, "b"):
-        parameters[bi] = 0
-
-    parameters["b0"] = 1 # We start with a linear taper, and see if we can improve on it!
+    # Simulation start parameters
+    parameters = None
+    if previous_best_parameters:
+        parameters = previous_best_parameters
+        sim._log_info("starting with previous run's best parameters: {parameters}".format(parameters=parameters))
+    else:
+        # Set up the simulation parameters/convergence parameters
+        parameters = {
+            "straight_length" : 5,
+            "pml_x_thickness" : 1,
+            "pml_y_thickness" : 1,
+            "to_pml_x" : 1,
+            "to_pml_y" : 1,
+            "resolution" : 16,
+            "min_run_time" : 100
+        }
+        for bi in MaterialFunction.paramListHelper(taper_order, "b"):
+            parameters[bi] = 0
+    
+        parameters["b0"] = 1 # We start with a linear taper, and see if we can improve on it!
     
     # Optimizer setup   
     scigro = ScipyGradientOptimizer(sim, 
