@@ -6,7 +6,7 @@ Created on Wed Mar  2 11:18:16 2022
 @author: skenning
 """
 
-from pdt.core import Simulation, Util, ParameterChangelog, Result
+from pdt.core import Simulation, Util, ParameterChangelog, Result, PreviousResults
 from pdt.opt import DesignRegion, MaterialFunction, LegendreTaperMaterialFunction, MinStepOptimizer, ScipyGradientOptimizer
 from pdt.tools import Render, ProgressRender
 
@@ -208,6 +208,15 @@ if __name__ == "__main__":
                                   taper_w2=1, 
                                   taper_length=1)
     
+    # Start from the best simulation logged to the HDF5 file
+    '''
+    pr = PreviousResults("WaveguideTaperAdjvsFD", "WD_WaveguideTaperAdjvsFD")
+    def pr_objective(f0):
+        return float(f0)
+    previous_best_parameters = pr.getBestParameters("f0", pr_objective, True)
+    print(previous_best_parameters)
+    '''
+    
     # Set up the simulation parameters/convergence parameters
     parameters = {
         "straight_length" : 5,
@@ -215,7 +224,7 @@ if __name__ == "__main__":
         "pml_y_thickness" : 1,
         "to_pml_x" : 1,
         "to_pml_y" : 1,
-        "resolution" : 32,
+        "resolution" : 16,
         "min_run_time" : 100
     }
     for bi in MaterialFunction.paramListHelper(taper_order, "b"):
@@ -234,8 +243,8 @@ if __name__ == "__main__":
                                     strategy="maximize")
     
     scigro.optimize(parameters, 
-                    finite_difference=False,
-                    progress_render_fname="progress_bad_start.gif", 
+                    finite_difference=True,
+                    progress_render_fname="progress.gif", 
                     progress_render_fig_kwargs=dict(figsize=(10, 15)), 
                     progress_render_duration=1000, 
                     bounds=[(0, 1)]*taper_order, 

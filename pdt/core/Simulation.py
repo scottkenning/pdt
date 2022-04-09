@@ -223,7 +223,7 @@ class Simulation:
                         self._log_info("Finished running {iteration}/{total_iterations}".format(iteration=iteration, total_iterations=total_iterations))
                     
                     # If a result has been returned from the running, then we can process it and allow the user to modify it
-                    if is_master() and result is not None:
+                    if result is not None:
                         user_result = None
                         try:
                             user_result = self.process(result, iteration_parameters)
@@ -239,7 +239,7 @@ class Simulation:
                     self.draw(iteration_parameters)
                     result = self.run(iteration_parameters)
                     
-                    if is_master() and result is not None:
+                    if result is not None:
                         user_result = self.process(result, iteration_parameters)
                         
                         if user_result is not None:
@@ -283,29 +283,31 @@ class PreviousResults:
         self.working_dir = working_dir
         
     def getBestParameters(self, fom : str, objective, maximize_objective : bool):
-        with h5py.File('{working_dir}/{logname}.hdf5'.format(working_dir=self.working_dir, logname=self.logname), 'r') as root_result:
-            # Loop through each simulation, and if the fom is present
-            best = None
-            for sim_name in root_result:
-                # Try to get the figure of merit from the simulation
-                obj_value = None
-                try:
-                    obj_value = objective(root_result[sim_name][fom])
-                    
-                    if best:
-                        if maximize_objective:
-                            if obj_value > objective(root_result[best][fom]):
-                                best = sim_name
+        try: # If the file doesn't exist
+            with h5py.File('{working_dir}/{logname}.hdf5'.format(working_dir=self.working_dir, logname=self.logname), 'r') as root_result:
+                # Loop through each simulation, and if the fom is present
+                best = None
+                for sim_name in root_result:
+                    # Try to get the figure of merit from the simulation
+                    obj_value = None
+                    try:
+                        obj_value = objective(root_result[sim_name][fom])
+                        
+                        if best:
+                            if maximize_objective:
+                                if obj_value > objective(root_result[best][fom]):
+                                    best = sim_name
+                            else:
+                                if obj_value < objective(root_result[best][fom]):
+                                    best = sim_name
                         else:
-                            if obj_value < objective(root_result[best][fom]):
-                                best = sim_name
-                    else:
-                        best = sim_name
-                except:
-                    pass # Not present in that simulation
-            
-            if best:
-                return root_results[best].attrs
-            else:
-                return None
+                            best = sim_name
+                    except:
+                        pass # Not present in that simulation
                 
+                if best:
+                    return root_results[best].attrs
+                else:
+                    return None
+        except:
+            return None
