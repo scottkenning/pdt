@@ -158,7 +158,7 @@ class DesignRegion:
             plt.ylabel("y")
         
     def plotMaterialFunctionDerivative(self, mat_func,  x: dict[str, float], sigma):
-        order, du_db = self.evalMaterialFunctionDerivative(mat_func, x, sigma)
+        order, du_db, _, _ = self.evalMaterialFunctionDerivative(mat_func, x, sigma)
         
         for item, du_db_i in zip(order, du_db):
             plt.figure()
@@ -219,15 +219,16 @@ class DesignRegion:
                 '''
                 # Evaluate
                 u_b_i_positive = self.evalMaterialFunction(mat_func, perturbed_x_positive, sigma)
-                all_du_db_i.append(u_b_i_positive / possible_dx_i)
+                u_b_i = self.evalMaterialFunction(mat_func, x, sigma)
+                all_du_db_i.append((u_b_i_positive - u_b_i) / possible_dx_i)
                 
                 # Check to see if it is sufficiently different to be useful
                 if not found:
-                    difference = np.sum(np.abs(u_b_i_positive))
+                    difference = np.sum(np.abs((u_b_i_positive - u_b_i)))
                     if not np.isclose(0, difference):
                         #print("perturbation for {current_name}: {possible_dx_i}".format(current_name=current_name, possible_dx_i=possible_dx_i))
                         # sufficiently different
-                        du_db.append(u_b_i_positive / possible_dx_i)
+                        du_db.append((u_b_i_positive - u_b_i) / possible_dx_i)
                         min_db.append(possible_dx_i)
                         found = True
                     else:

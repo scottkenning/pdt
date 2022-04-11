@@ -201,7 +201,10 @@ class LegendreTaperSimulation(Simulation):
                 plt.close()
             render.render(100)
             '''
+            # Plot out derivatives
+            self.design_region.plotMaterialFunctionDerivative(self.taper, MaterialFunction.arrayToParams('b', polynomial_coeffs), sigma)
             
+            '''
             # Generate a visualization of the sensitivity
             f0, dJ_du = (self.opt)()
             if len(dJ_du.shape) > 1:
@@ -213,6 +216,7 @@ class LegendreTaperSimulation(Simulation):
             plt.xlabel("x (µm)")
             plt.ylabel("y (µm)")
             plt.colorbar()
+            '''
         else:
             if include_jac:
                 # Run the forward and adjoint run
@@ -248,7 +252,7 @@ def getBestParameters():
         print("no previous simulation data found")
       
 if __name__ == "__main__":
-    render = True
+    render = False
     resolution = 64
     
     taper_order = 5
@@ -288,7 +292,7 @@ if __name__ == "__main__":
         for bi in MaterialFunction.paramListHelper(taper_order, "b"):
             parameters[bi] = 0
     
-        parameters["b0"] = 0 # We start with something absurd, and then improve it.
+        parameters["b0"] = 1 # We start with something absurd, and then improve it.
     
     parameters["resolution"] = resolution
     if render:
@@ -305,7 +309,7 @@ if __name__ == "__main__":
                                         strategy="maximize")
         
         scigro.optimize(parameters, 
-                        finite_difference=True,
+                        finite_difference=False,
                         progress_render_fname="progress.gif", 
                         progress_render_fig_kwargs=dict(figsize=(10, 15)), 
                         progress_render_duration=1000, 
