@@ -29,7 +29,8 @@ class LegendreTaperSimulation(Simulation):
                  taper_w1, 
                  taper_w2, 
                  taper_length,
-                 catch_errors=False):
+                 catch_errors=False,
+                 render=False):
         Simulation.__init__(self, "WaveguideTaperAdjvsFD", working_dir="WD_WaveguideTaperAdjvsFD", catch_errors=catch_errors)
         
         # Taper parameters
@@ -50,6 +51,9 @@ class LegendreTaperSimulation(Simulation):
         self.taper = None
         self.design_region = None
         
+        # Debug and renders
+        self.render = render
+        
     def getCurrentDesign(self):
         return self.taper
     def getCurrentDesignRegion(self):
@@ -69,6 +73,7 @@ class LegendreTaperSimulation(Simulation):
         to_pml_y = float(parameters["to_pml_y"])
         resolution = int(parameters["resolution"])
         min_run_time = int(parameters["min_run_time"])
+        fields_decay_by = float(parameters["fields_decay_by"])
         include_jac = parameters["include_jac"]
         sigma = 0
                 
@@ -176,28 +181,76 @@ class LegendreTaperSimulation(Simulation):
         design = self.design_region.evalMaterialFunction(self.taper, MaterialFunction.arrayToParams('b', polynomial_coeffs), sigma)
         self.opt.update_design([design.transpose().flatten()])
         
-        if include_jac:
-            # Run the forward and adjoint run
+        if self.render:
+            '''
+            # Nice animation
+            field_data = []
+            collect_fields = lambda mp_sim: field_data.append(mp_sim.get_efield_y())
+            self.sim.run(mp.at_every(2, collect_fields), 
+                         until_after_sources=mp.stop_when_fields_decayed(min_run_time,mp.Ey,output_monitor_pt,fields_decay_by))
+            
+            render = Render("{working_dir}/render.gif".format(working_dir=self.working_dir))
+            max_field = np.max(np.abs(np.real(field_data)))
+            for data in field_data:
+                fig = plt.figure(dpi=128)
+                plt.imshow(self.sim.get_epsilon().transpose(), interpolation='spline36', cmap='binary', extent=(-sx/2, sx/2, -sy/2, sy/2))
+                plt.imshow(np.real(data).transpose(), vmin=-max_field, vmax=max_field, interpolation='spline36', cmap='RdBu', alpha=0.9, extent=(-sx/2, sx/2, -sy/2, sy/2))
+                plt.xlabel("x (µm)")
+                plt.ylabel("y (µm)")
+                render.add(fig)
+                plt.close()
+            render.render(100)
+            '''
+            
+            # Generate a visualization of the sensitivity
             f0, dJ_du = (self.opt)()
             if len(dJ_du.shape) > 1:
                 dJ_du = npa.sum(dJ_du, axis=1)
             dJ_du = dJ_du.reshape(self.design_region.N).transpose()
             
-            # Compute the gradient with respect to the taper parameters
-            order, du_db, min_db, all_du_db = self.design_region.evalMaterialFunctionDerivative(self.taper, MaterialFunction.arrayToParams('b', polynomial_coeffs), sigma) # Material function vs taper coefficients
-            dJ_db = np.asarray([np.sum(dJ_du * du_db[i]) for i in range(len(order))]).flatten()
-        
-            self._log_info("adj gradient: {gradient}".format(gradient=dJ_db))
-        
-            return Result(parameters, f0=f0, dJ_du=dJ_du, dJ_db=dJ_db, min_db=np.asarray(min_db), all_du_db=all_du_db, wavelengths=self.wavelengths)
+            plt.figure()
+            plt.imshow(dJ_du, extent=(-self.taper_length/2, self.taper_length/2, -self.taper_w2/2, self.taper_w2/2))
+            plt.xlabel("x (µm)")
+            plt.ylabel("y (µm)")
+            plt.colorbar()
         else:
-            self.opt.forward_run()
-            return Result(parameters, f0=self.opt.f0, wavelengths=self.wavelengths)
+            if include_jac:
+                # Run the forward and adjoint run
+                f0, dJ_du = (self.opt)()
+                if len(dJ_du.shape) > 1:
+                    dJ_du = npa.sum(dJ_du, axis=1)
+                dJ_du = dJ_du.reshape(self.design_region.N).transpose()
+                
+                # Compute the gradient with respect to the taper parameters
+                order, du_db, min_db, all_du_db = self.design_region.evalMaterialFunctionDerivative(self.taper, MaterialFunction.arrayToParams('b', polynomial_coeffs), sigma) # Material function vs taper coefficients
+                dJ_db = np.asarray([np.sum(dJ_du * du_db[i]) for i in range(len(order))]).flatten()
+            
+                self._log_info("adj gradient: {gradient}".format(gradient=dJ_db))
+            
+                return Result(parameters, f0=f0, dJ_du=dJ_du, dJ_db=dJ_db, min_db=np.asarray(min_db), all_du_db=all_du_db, wavelengths=self.wavelengths)
+            else:
+                self.opt.forward_run()
+                return Result(parameters, f0=self.opt.f0, wavelengths=self.wavelengths)
     
     def process(self, result, parameters):        
         return result # We return this just to assert that we actually do want this data saved  
       
+def getBestParameters():
+    pr = PreviousResults("WaveguideTaperAdjvsFD", "WD_WaveguideTaperAdjvsFD")
+    
+    def objective(f0):
+        return f0[()] # get the scalar data out of the HDF5 Dataset
+    best = pr.getBestParameters("f0", objective, True)
+    
+    if best:
+        print(best)
+    else:
+        print("no previous simulation data found")
+      
 if __name__ == "__main__":
+    render = True
+    resolution = 64
+    
     taper_order = 5
     
     sim = LegendreTaperSimulation(center_wavelength=1.55,
@@ -206,7 +259,8 @@ if __name__ == "__main__":
                                   taper_order=taper_order, 
                                   taper_w1=.4, 
                                   taper_w2=1, 
-                                  taper_length=1)
+                                  taper_length=1,
+                                  render=render)
     
     # Start from the best simulation logged to the HDF5 file
     pr = PreviousResults("WaveguideTaperAdjvsFD", "WD_WaveguideTaperAdjvsFD")
@@ -216,7 +270,7 @@ if __name__ == "__main__":
     
     # Simulation start parameters
     parameters = None
-    if previous_best_parameters:
+    if previous_best_parameters and not render:
         parameters = previous_best_parameters
         sim._log_info("starting with previous run's best parameters: {parameters}".format(parameters=parameters))
     else:
@@ -227,31 +281,36 @@ if __name__ == "__main__":
             "pml_y_thickness" : 1,
             "to_pml_x" : 1,
             "to_pml_y" : 1,
-            "resolution" : 16,
-            "min_run_time" : 100
+            "min_run_time" : 100,
+            "fields_decay_by" : 1e-9,
+            "include_jac" : False
         }
         for bi in MaterialFunction.paramListHelper(taper_order, "b"):
             parameters[bi] = 0
     
-        parameters["b0"] = 1 # We start with a linear taper, and see if we can improve on it!
+        parameters["b0"] = 0 # We start with something absurd, and then improve it.
     
-    # Optimizer setup   
-    scigro = ScipyGradientOptimizer(sim, 
-                                    sim.getCurrentDesignRegion, 
-                                    sim.getCurrentDesign, 
-                                    method="L-BFGS-B",
-                                    fom="f0", 
-                                    jac="dJ_db", 
-                                    opt_parameters=MaterialFunction.paramListHelper(taper_order, "b"), 
-                                    strategy="maximize")
-    
-    scigro.optimize(parameters, 
-                    finite_difference=True,
-                    progress_render_fname="progress.gif", 
-                    progress_render_fig_kwargs=dict(figsize=(10, 15)), 
-                    progress_render_duration=1000, 
-                    bounds=[(0, 1)]*taper_order, 
-                    options=dict(maxls=10, disp=True))
+    parameters["resolution"] = resolution
+    if render:
+        sim.oneOff(parameters)
+    else:
+        # Optimizer setup   
+        scigro = ScipyGradientOptimizer(sim, 
+                                        sim.getCurrentDesignRegion, 
+                                        sim.getCurrentDesign, 
+                                        method="L-BFGS-B",
+                                        fom="f0", 
+                                        jac="dJ_db", 
+                                        opt_parameters=MaterialFunction.paramListHelper(taper_order, "b"), 
+                                        strategy="maximize")
+        
+        scigro.optimize(parameters, 
+                        finite_difference=True,
+                        progress_render_fname="progress.gif", 
+                        progress_render_fig_kwargs=dict(figsize=(10, 15)), 
+                        progress_render_duration=1000, 
+                        bounds=[(0, 1)]*taper_order, 
+                        options=dict(maxls=10, disp=True))
     
     
 

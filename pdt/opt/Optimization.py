@@ -195,6 +195,7 @@ class DesignRegion:
                 perturbed_x_negative = copy.deepcopy(x)
                 perturbed_x_negative[current_name] -= possible_dx_i
                 
+                '''
                 # Evaluate
                 u_b_i_positive = self.evalMaterialFunction(mat_func, perturbed_x_positive, sigma)
                 u_b_i_negative = self.evalMaterialFunction(mat_func, perturbed_x_negative, sigma)
@@ -215,6 +216,27 @@ class DesignRegion:
                             # Assume the derivative is zero
                             du_db.append(np.zeros(self.N))
                             min_db.append(0)
+                '''
+                # Evaluate
+                u_b_i_positive = self.evalMaterialFunction(mat_func, perturbed_x_positive, sigma)
+                all_du_db_i.append(u_b_i_positive / possible_dx_i)
+                
+                # Check to see if it is sufficiently different to be useful
+                if not found:
+                    difference = np.sum(np.abs(u_b_i_positive))
+                    if not np.isclose(0, difference):
+                        #print("perturbation for {current_name}: {possible_dx_i}".format(current_name=current_name, possible_dx_i=possible_dx_i))
+                        # sufficiently different
+                        du_db.append(u_b_i_positive / possible_dx_i)
+                        min_db.append(possible_dx_i)
+                        found = True
+                    else:
+                        if j == len(possible_dx_i_s) - 1:
+                            # The hint range does not perturb the design near x
+                            # Assume the derivative is zero
+                            du_db.append(np.zeros(self.N))
+                            min_db.append(0)
+                
             all_du_db.append(all_du_db_i)
         # Now that we have that array, we return it as our result
         return order, du_db, min_db, np.asarray(all_du_db)

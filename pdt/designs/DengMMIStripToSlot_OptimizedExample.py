@@ -142,7 +142,7 @@ class DengSymMMIStripToSlotSimulation(Simulation):
                  gaussian_width=10,
                  opt_parameters=[],
                  catch_errors=False,
-                 adjoint=True):
+                 render=False):
         Simulation.__init__(self, fname, working_dir="WD_DengMMIStripToSlot", catch_errors=catch_errors)
 
         # Order of boundaries
@@ -163,7 +163,7 @@ class DengSymMMIStripToSlotSimulation(Simulation):
         
         # Debug stuff
         self.catch_errors = catch_errors
-        self.adjoint = adjoint
+        self.render = render
         
         # Gradient evaluation
         self.opt_parameters = opt_parameters
@@ -319,32 +319,50 @@ class DengSymMMIStripToSlotSimulation(Simulation):
         # Now we update the design region (meep's) and give it a nice plot
         design = self.design_region.evalMaterialFunction(self.converter, opt_parameter_dict, sigma)
         self.opt.update_design([design.transpose().flatten()])
-
-        if include_jac:
-            # Run the forward and adjoint run
-            f0, dJ_du = (self.opt)()
-            if len(dJ_du.shape) > 1:
-                dJ_du = npa.sum(dJ_du, axis=1)
-            dJ_du = dJ_du.reshape(self.design_region.N).transpose()
+        
+        if self.render:
+            field_data = []
+            collect_fields = lambda mp_sim: field_data.append(mp_sim.get_efield_y())
+            self.sim.run(mp.at_every(2, collect_fields), 
+                         until_after_sources=mp.stop_when_fields_decayed(min_run_time,mp.Ey,output_monitor_pt,fields_decay_by))
             
-            plt.figure()
-            plt.imshow(dJ_du)
-            plt.colorbar()
-            
-            # Compute the gradient with respect to the taper parameters
-            order, du_db, min_db, all_du_db = self.design_region.evalMaterialFunctionDerivative(self.converter, opt_parameter_dict, sigma) # Material function vs taper coefficients
-            dJ_db = np.asarray([np.sum(dJ_du * du_db[i]) for i in range(len(order))]).flatten()
-            
-            
-            all_dJ_db = []
-            for i in range(len(order)):
-                all_dJ_db.append(np.asarray([np.sum(dJ_du * all_du_db[i][j]) for j in range(len(order))]).flatten())
-            all_dJ_db = np.asarray(all_dJ_db)
-            
-            return Result(parameters, f0=f0, dJ_du=dJ_du, dJ_db=dJ_db*10, min_db=np.asarray(min_db), all_du_db=all_du_db, all_dJ_du=all_dJ_db, wavelengths=self.wavelengths)
+            render = Render("{working_dir}/render.gif".format(working_dir=self.working_dir))
+            max_field = np.max(np.abs(np.real(field_data)))
+            for data in field_data:
+                fig = plt.figure(dpi=128)
+                plt.imshow(self.sim.get_epsilon().transpose(), interpolation='spline36', cmap='binary', extent=(-sx/2, sx/2, -sy/2, sy/2))
+                plt.imshow(np.real(data).transpose(), vmin=-max_field, vmax=max_field, interpolation='spline36', cmap='RdBu', alpha=0.9, extent=(-sx/2, sx/2, -sy/2, sy/2))
+                plt.xlabel("x (µm)")
+                plt.ylabel("y (µm)")
+                render.add(fig)
+                plt.close()
+            render.render(50)
         else:
-            self.opt.forward_run()
-            return Result(parameters, f0=self.opt.f0)
+            if include_jac:
+                # Run the forward and adjoint run
+                f0, dJ_du = (self.opt)()
+                if len(dJ_du.shape) > 1:
+                    dJ_du = npa.sum(dJ_du, axis=1)
+                dJ_du = dJ_du.reshape(self.design_region.N).transpose()
+                
+                plt.figure()
+                plt.imshow(dJ_du)
+                plt.colorbar()
+                
+                # Compute the gradient with respect to the taper parameters
+                order, du_db, min_db, all_du_db = self.design_region.evalMaterialFunctionDerivative(self.converter, opt_parameter_dict, sigma) # Material function vs taper coefficients
+                dJ_db = np.asarray([np.sum(dJ_du * du_db[i]) for i in range(len(order))]).flatten()
+                
+                
+                all_dJ_db = []
+                for i in range(len(order)):
+                    all_dJ_db.append(np.asarray([np.sum(dJ_du * all_du_db[i][j]) for j in range(len(order))]).flatten())
+                all_dJ_db = np.asarray(all_dJ_db)
+                
+                return Result(parameters, f0=f0, dJ_du=dJ_du, dJ_db=dJ_db*10, min_db=np.asarray(min_db), all_du_db=all_du_db, all_dJ_du=all_dJ_db, wavelengths=self.wavelengths)
+            else:
+                self.opt.forward_run()
+                return Result(parameters, f0=self.opt.f0)
         
     def process(self, result, parameters):
         return result
@@ -362,6 +380,8 @@ def getBestParameters():
         print("no previous simulation data found")
 
 if __name__ == "__main__":
+    render = True
+    
     # Constraints
     ridge_order = 6
     taper_order = 6
@@ -383,7 +403,8 @@ if __name__ == "__main__":
     sim = DengSymMMIStripToSlotSimulation(fname="DengMMIStripToSlot_FullyOptimized",
                                           taper_order=taper_order,
                                           ridge_order=ridge_order,
-                                          opt_parameters=opt_parameters)
+                                          opt_parameters=opt_parameters,
+                                          render=render)
 
     parameters = {
         "straight_length" : 3,
@@ -392,13 +413,14 @@ if __name__ == "__main__":
         "to_pml_x" : 1,
         "to_pml_y" : 1,
         "resolution" : 64,
-        "min_run_time" : 100,
+        "min_run_time" : 200,
         "fields_decay_by" : 1e-9,
         "device_length" : device_length,
         "device_width" : device_width,
         "mmi_length" : mmi_length_start,
         "mmi_width" : mmi_width_start,
-        "input_ridge_runup" : input_ridge_runup_start
+        "input_ridge_runup" : input_ridge_runup_start,
+        "include_jac" : False
     }            
     parameters["taper0"] = 0.9021119655340561
     parameters["taper1"] = -0.08428701016776316
@@ -413,17 +435,20 @@ if __name__ == "__main__":
     parameters["ridge3"] = 0.007371613603654596
     parameters["ridge4"] = -0.003687412447180049
     parameters["ridge5"] = -0.003566452717740043
-        
-    optimizer = ScipyGradientOptimizer(sim, 
-                                       sim.getCurrentDesignRegion, 
-                                       sim.getCurrentDesign, 
-                                       "f0", 
-                                       "dJ_db", 
-                                       opt_parameters, 
-                                       strategy="maximize")
-    optimizer.optimize(parameters, 
-                       finite_difference=True,
-                       progress_render_fname="progress_fd.gif", 
-                       progress_render_fig_kwargs=dict(figsize=(10, 15)), 
-                       progress_render_duration=1000, 
-                       options=dict(maxls=1, maxfun=10, maxiter=10))
+    
+    if render:
+        sim.oneOff(parameters)
+    else:
+        optimizer = ScipyGradientOptimizer(sim, 
+                                           sim.getCurrentDesignRegion, 
+                                           sim.getCurrentDesign, 
+                                           "f0", 
+                                           "dJ_db", 
+                                           opt_parameters, 
+                                           strategy="maximize")
+        optimizer.optimize(parameters, 
+                           finite_difference=True,
+                           progress_render_fname="progress_fd.gif", 
+                           progress_render_fig_kwargs=dict(figsize=(10, 15)), 
+                           progress_render_duration=1000, 
+                           options=dict(maxls=1, maxfun=10, maxiter=10))
