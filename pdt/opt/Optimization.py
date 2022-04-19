@@ -177,6 +177,33 @@ class MaterialFunction:
 
 class DesignRegion:
     def __init__(self, size, N):
+        """
+        The constructor for DesignRegion. Sets up size and the underlying
+        discrete nature of this object.
+
+        Parameters
+        ----------
+        size : array-like of float
+            The actual physical dimensions of the design region. It should be
+            an array-like object with a length equal to the dimensionality 
+            (e.g., 2D, 3D) of the design region.
+        N : array-like of int
+            The number of grid spaces in each spatial dimension. It should be
+            an array-like object with a length equal to the dimensionality 
+            (e.g., 2D, 3D) of the design region.
+
+        Raises
+        ------
+        ValueError
+            An exception is raised if the qualifications for size and N listed
+            above are not met.
+
+        Returns
+        -------
+        None.
+
+        """
+        
         if len(N) != len(size):
             raise ValueError("The DesignRegion's size ({size}) must have the same length as N ({N})".format(size=size, N=N))
         
@@ -194,11 +221,24 @@ class DesignRegion:
         if len(c) != self.dim:
             raise ValueError("DesignRegion.map functions requires a parameter c with len(c) equal to the dimensionality of the region (c.shape[0] == {shape})".format(shape=c.shape[0]))
           
-    def scaleAdjointGradient(self, dJ_du, delta_epsilon):
-        print(delta_epsilon / self.dA)
-        return dJ_du * delta_epsilon / self.dA
-          
     def mapRealToGrid(self, x):
+        """
+        Takes coordinates given in x and maps them to the discrete grid using
+        size and N.
+
+        Parameters
+        ----------
+        x : array-like object of floats
+            The real-space coordinates to be mapped by their discrete indexed
+            by integers parters.
+
+        Returns
+        -------
+        n : array-like object of ints
+            x mapped to the underlying discrete grid indexed by integers.
+
+        """
+        
         self._check_coord(x)
         n = [np.zeros(x_it.shape, dtype=np.float128) for x_it in x]
         
@@ -208,6 +248,21 @@ class DesignRegion:
         return n
             
     def mapGridToReal(self, n):
+        """
+        Inverse of mapRealToGrid.
+
+        Parameters
+        ----------
+        n : array-like object of ints
+            See mapRealToGrid.
+
+        Returns
+        -------
+        x : array-like object of floats
+            See mapRealToGrid.
+
+        """
+        
         self._check_coord(n)
         x = [np.zeros(n_it.shape, dtype=np.float128) for n_it in n]
         
@@ -216,28 +271,86 @@ class DesignRegion:
             
         return x
     
-    def evalMaterialFunction(self, mat_func, x: dict[str, float], sigma):
-        return gaussian_filter(mat_func(self.x_grid, x), sigma)
+    def evalMaterialFunction(self, mat_func : MaterialFunction, params: dict[str, float], sigma):
+        """
+        Evaluates the material function over the grid defined.
+
+        Parameters
+        ----------
+        mat_func : MaterialFunction
+            The material function to evaluate.
+        params : dict[str, float]
+            Design parameters.
+        sigma : float
+            A blurring factor. Usually this is set to 0.
+
+        Returns
+        -------
+        np.array
+            An array specifying the material properties at each grid point.
+        """
+        
+        return gaussian_filter(mat_func(self.x_grid, params), sigma)
     
-    def plotMaterialFunction(self, mat_func, x: dict[str, float], sigma, ax=None):
+    def plotMaterialFunction(self, mat_func : MaterialFunction, params: dict[str, float], sigma, ax=None):
+        """
+        Helper function to plot the material function. This only works for 2D
+        design regions.
+
+        Parameters
+        ----------
+        mat_func : MaterialFunction
+            The material function to evaluate.
+        params : dict[str, float]
+            Design parameters.
+        sigma : float
+            A blurring factor. Usually this is set to 0.
+        ax : matplotlib axis type
+            If this is not None, plotting could be done on a subplot, for example.
+
+        Returns
+        -------
+        None.
+        
+        """
+        
         if self.dim != 2:
             raise ValueError("Cannot plotMaterialFunction unless dimensionality of the design region is 2")
         
         if ax:
             ax.set_title("material function")
-            ax.imshow(self.evalMaterialFunction(mat_func, x, sigma), extent=(-self.size[0]/2, self.size[0]/2, -self.size[1]/2, self.size[1]/2))
+            ax.imshow(self.evalMaterialFunction(mat_func, params, sigma), extent=(-self.size[0]/2, self.size[0]/2, -self.size[1]/2, self.size[1]/2))
             ax.set_xlabel("x")
             ax.set_ylabel("y")
         else:
             plt.figure()
             plt.title("material function")
-            plt.imshow(self.evalMaterialFunction(mat_func, x, sigma), extent=(-self.size[0]/2, self.size[0]/2, -self.size[1]/2, self.size[1]/2))
+            plt.imshow(self.evalMaterialFunction(mat_func, params, sigma), extent=(-self.size[0]/2, self.size[0]/2, -self.size[1]/2, self.size[1]/2))
             plt.colorbar()
             plt.xlabel("x")
             plt.ylabel("y")
         
-    def plotMaterialFunctionDerivative(self, mat_func,  x: dict[str, float], sigma):
-        order, du_db, _, _ = self.evalMaterialFunctionDerivative(mat_func, x, sigma)
+    def plotMaterialFunctionDerivative(self, mat_func : MaterialFunction,  params: dict[str, float], sigma):
+        """
+        Helper function to plot the material function's derivative. This only works for 2D
+        design regions.
+
+        Parameters
+        ----------
+        mat_func : MaterialFunction
+            The material function to evaluate.
+        params : dict[str, float]
+            Design parameters.
+        sigma : float
+            A blurring factor. Usually this is set to 0.
+
+        Returns
+        -------
+        None.
+        
+        """
+        
+        order, du_db, _, _ = self.evalMaterialFunctionDerivative(mat_func, params, sigma)
         
         for item, du_db_i in zip(order, du_db):
             plt.figure()
@@ -247,12 +360,40 @@ class DesignRegion:
             plt.xlabel("x")
             plt.ylabel("y")
     
-    def evalMaterialFunctionDerivative(self, mat_func, x: dict[str, float], sigma):
+    def evalMaterialFunctionDerivative(self, mat_func : MaterialFunction, params: dict[str, float], sigma):
+        """
+        This evaluates the material function's derivative with respect to each design parameter.
+
+        Parameters
+        ----------
+        mat_func : MaterialFunction
+            The material function to evaluate.
+        params : dict[str, float]
+            Design parameters.
+        sigma : float
+            A blurring factor. Usually this is set to 0.
+
+        Returns
+        -------
+        order : list[strs]
+            The name of the design parameter that corresponds to each index
+            of all the subsequent arrays returned.
+        du_db : np.ndarray
+            The gradient, where the primary index corresponds to a different design
+            parameter.
+        min_db : np.ndarray
+            The minimum perturbation required for each design parameter to see
+            a change on the underlying material grid.
+        all_du_db : np.ndarray
+            For debugging purposes only. This can be ignored.
+        
+        """
+        
         # Ok, so here is where things start to get a little complex. We need to
         # find du/db, where u is an individual grid point's change when one of
         # the parameters to the material function is perturbed. 
-        order = x.keys()
-        current = self.evalMaterialFunction(mat_func, x, sigma)
+        order = params.keys()
+        current = self.evalMaterialFunction(mat_func, params, sigma)
         
         # du/db_i (du is an array the size of the design region)
         du_db = []
@@ -268,11 +409,11 @@ class DesignRegion:
             found = False
             for j, possible_dx_i in enumerate(possible_dx_i_s):
                 # Perturb
-                perturbed_x_positive = copy.deepcopy(x)
-                perturbed_x_positive[current_name] += possible_dx_i
+                perturbed_params_positive = copy.deepcopy(params)
+                perturbed_params_positive[current_name] += possible_dx_i
                 
-                perturbed_x_negative = copy.deepcopy(x)
-                perturbed_x_negative[current_name] -= possible_dx_i
+                perturbed_params_negative = copy.deepcopy(params)
+                perturbed_params_negative[current_name] -= possible_dx_i
                 
                 '''
                 # Evaluate
@@ -297,8 +438,8 @@ class DesignRegion:
                             min_db.append(0)
                 '''
                 # Evaluate
-                u_b_i_positive = self.evalMaterialFunction(mat_func, perturbed_x_positive, sigma)
-                u_b_i = self.evalMaterialFunction(mat_func, x, sigma)
+                u_b_i_positive = self.evalMaterialFunction(mat_func, perturbed_params_positive, sigma)
+                u_b_i = self.evalMaterialFunction(mat_func, params, sigma)
                 all_du_db_i.append((u_b_i_positive - u_b_i) / possible_dx_i)
                 
                 # Check to see if it is sufficiently different to be useful
