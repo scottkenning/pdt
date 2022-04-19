@@ -17,12 +17,28 @@ import copy
 from pdt.core.Util import *
 from pdt.core.Util import if_master
 
-'''
-The Result class only 'does' things when it is in the master process.
-Otherwise, it would store redundant information and just take up memory.
-'''
 class Result:
+    """
+    This class streamlines saving results to HDF5 files. It only does things
+    when the master process (i.e., only the master process saves data).
+    """
     def __init__(self, parameters: dict[str, typing.Any], **values):
+        """
+        Constructor for the Result class. It takes in all information that needs
+        to be saved.
+
+        Parameters
+        ----------
+        parameters : dict[str, typing.Any]
+            The simulation parameters to be saved as meta-data in the HDF5 file.
+        **values : Array-like objects.
+            Objects that will be saved as array objects in the HDF5 file.
+
+        Returns
+        -------
+        None.
+
+        """
         if is_master():
             self.parameters = parameters
             self.values = values
