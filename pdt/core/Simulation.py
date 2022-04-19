@@ -79,12 +79,41 @@ class CSVParameterLoader:
             raise ValueError("Parameters do not have the same length")
 
 class ParameterChangelog:
+    """
+    A helper class that can be passed parameters every iteration and determines
+    which ones change. This could be useful in determining whether or not to
+    redraw the simulation every iteration.
+    """
+    
     def __init__(self):
+        """
+        The constructor for ParameterChangelog.
+
+        Returns
+        -------
+        None.
+
+        """
         self.changes = dict()
         self.prev = None
         self.current = None
         
     def updateParameters(self, parameters: dict[str, typing.Any]):
+        """
+        This function loads in the new parameters and compares them to what was
+        previously passed in. If there were no parameters previously passed in,
+        the logic in this function determines all the parameters have changed.
+
+        Parameters
+        ----------
+        parameters : dict[str, typing.Any]
+            The new parameters.
+
+        Returns
+        -------
+        None.
+
+        """
         self.prev = copy.deepcopy(self.current)
         self.current = copy.deepcopy(parameters)
         
@@ -100,13 +129,42 @@ class ParameterChangelog:
             for key, value in self.current.items():
                 self.changes[key] = True
                 
-    def changesInclude(self, key_list: list[str]):
+    def changesInclude(self, key_list: list[str]) -> bool:
+        """
+        An 'or' comparison of the changes of the parameters in the key_list.
+
+        Parameters
+        ----------
+        key_list : list[str]
+            The parameters to check the change of.
+
+        Returns
+        -------
+        bool
+            An indication of whether or not atleast one of the parameters in the
+            key_list has changed.
+        """
+        
         for key in key_list:
             if self.changes[key]:
                 return True
         return False
     
-    def changesExclude(self, not_key_list: list[str]):
+    def changesExclude(self, not_key_list: list[str]) -> bool:
+        """
+        An 'or' comparison of the changes of the parameters not in key_list.
+
+        Parameters
+        ----------
+        not_key_list : list[str]
+            The parameters not to check for changes in.
+
+        Returns
+        -------
+        bool
+            An indication of whether or not atleast one of the parameters not
+            in the key_list has changed.
+        """
         for key in self.changes.keys():
             if (not key in not_key_list) and self.changes[key]:
                 return True
