@@ -463,7 +463,62 @@ class DesignRegion:
         return order, du_db, min_db, np.asarray(all_du_db)
 
 class ScipyGradientOptimizer:
-    def __init__(self, sim: Simulation, design_region, design, fom: str, jac: str, opt_parameters: list[str], method="L-BFGS-B", strategy="minimize", include_jac_key="include_jac"):
+    """
+    This class wraps Scipy optimization routines for convenience purposes. Depending
+    on the information passed to the constructor, it will automatically decide whether
+    to use first difference methods or to use gradient information returned by the simulation
+    that ran. That is, if fom is not None, it will attempt to use gradient information
+    returned from the simulation to make its next move. This opens up the possibility
+    to use adjoint methods.
+    
+    In addition, this class also does some stuff in the background, like making
+    sure a simulation with the same parameters is not ran twice on accident by
+    the scipy optimization algorithm.
+    """
+    
+    def __init__(self, sim: Simulation, design_region : DesignRegion, design : MaterialFunction, fom: str, jac: str, opt_parameters: list[str], method="L-BFGS-B", strategy="minimize", include_jac_key="include_jac"):
+        """
+        The constructor of ScipyGradientOptimizer.
+
+        Parameters
+        ----------
+        sim : Simulation
+            The simulation object.
+        design_region : DesignRegion
+            The design region that is being optimized.
+        design : MaterialFunction
+            The material function that populates the design region.
+        fom : str
+            The field to look for in the Result object returned by the simulation
+            to use as a figure of merit.
+        jac : str
+            The field to look for in the Result object returned by the simulation
+            to use as the gradient of the design. If this is not present, this
+            class will use first-difference methods as a default.
+        opt_parameters : list[str]
+            The parameters to oprimize.
+        method : str, optional
+            The Scipy optimization method to use. The default is "L-BFGS-B".
+        strategy : str, optional
+            "minimize" or "maximize" the figure of merit. The default is "minimize".
+        include_jac_key : str, optional
+            This parameter allows for the ScipyGradientOptimizer to pass a value
+            in the params array passed to the simulation indicating if it will be
+            using first-difference methods or relying on the simulation's calculated 
+            version of the gradient. Note that the presence of the jac parameter overrides
+            this. For example, if you wanted to test your calculation of the gradient
+            from adjoint methods against first-difference methods, your version of
+            the Simulation class can implement both, and the field in the parameters
+            with key given by this variable will indicate whether it should run an
+            adjoint run. The default is "include_jac", but this becomes meaningless
+            if jac=None.
+
+        Returns
+        -------
+        None.
+
+        """
+        
         self.sim = sim
         self.design_region = design_region # Function that returns the currently active design region!
         self.design = design # Function that returns the currently active design!
@@ -516,7 +571,36 @@ class ScipyGradientOptimizer:
             else:
                 progress_render.renderCurrent()
     
-    def optimize(self, start_parameters: dict[str, float], finite_difference, progress_render_fname=None, progress_render_fig_kwargs=dict(), progress_render_fancy=True, progress_render_duration=10, **kwargs):
+    def optimize(self, start_parameters: dict[str, float], finite_difference : bool, progress_render_fname=None, progress_render_fig_kwargs=dict(), progress_render_fancy=True, progress_render_duration=10, **kwargs):
+        """
+        Run the optimization.
+
+        Parameters
+        ----------
+        start_parameters : dict[str, float]
+            The initial guess.
+        finite_difference : bool
+            Use first difference methods. Note that if the jac parameter passed
+            to the constructor is None, then the optimizer will use first difference
+            regardless of this parameter.
+        progress_render_fname : str, optional
+            The name of the file to output a GIF render of the design evolution to. 
+            The default is None, which will result in no render being made.
+        progress_render_fig_kwargs : dict[str, typing.Any], optional
+            kwargs to be passed to plt.subplots() for the render of each design. The default is dict().
+        progress_render_fancy : TYPE, optional
+            This will generate a nice animated GIF if set True, 
+            otherwise, it will not be an animated GIF. The default is True.
+        progress_render_duration : TYPE, optional
+            Duration of each frame (if animated GIF) in milliseconds. The default is 10.
+        **kwargs : dict[str, typing.Any]
+            kwargs to be passed to scipy.optimize.minimize.
+
+        Returns
+        -------
+        None.
+        """
+        
         start_b = list(self._get_opt_parameters(start_parameters).values())
         
         self.sim._log_info("optimizer starting at {start_b}".format(start_b=start_b))
