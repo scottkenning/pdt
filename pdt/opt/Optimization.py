@@ -15,14 +15,56 @@ import scipy.optimize as sciopt
 from pdt.core.Simulation import Simulation
 import pdt.core.Util as Util
 from pdt.tools.Render import Render, ProgressRender
+import typing
 
 class MaterialFunction:
+    """
+    This class provides a convenient way to structure parameterized models. 
+    The evalModel function is overridden by the user, and provides a point-wise
+    description of the material comprising the device.
+    """
     def __init__(self, db_hints: dict[str, (float, float, int)], how_hints=np.linspace):
+        """
+        The constructor for MaterialFunction. It collects information on how
+        the design can be perturbed to generate a new design on the underlying
+        discrete grid.
+
+        Parameters
+        ----------
+        db_hints : dict[str, (float, float, int)]
+            How to generate the first difference locations tried to evaluate the
+            gradient: min, max, count.
+        how_hints : function, optional
+            How to generate the first difference locations tried to evaluate the
+            gradient. The default is np.linspace.
+
+        Returns
+        -------
+        None.
+
+        """
+        
         self.db_hints = db_hints
         self.how_hints = how_hints
         # dx_hints has tuples (min, max, number of points) 
     
     def evalModel(self, x, params: dict[str, float]):
+        """
+        Evaluate the material function.
+
+        Parameters
+        ----------
+        x : usually np.ndarray
+            An array of points to evaluate the material function at.
+        params : dict[str, float]
+            Any design parameters used in generation.
+
+        Returns
+        -------
+        An object of the same dimensionality of x that provides a description
+        or value of some material property at a point or array of points.
+
+        """
         pass
     
     #def evalModelFlat(self, x, params: dict[str, float]):
@@ -37,25 +79,97 @@ class MaterialFunction:
         else:
             return result
         
-    def hintHelper(count: int, base: str, prototype: (float, float, int)):
+    def hintHelper(count: int, base: str, prototype: (float, float, int)) -> dict[str, tuple[float, float, int]]:
+        """
+        A helper method for generating repetative db_hints. It returns a
+        dictionary with length count of items ({base}{index}, prototype).
+
+        Parameters
+        ----------
+        count : int
+            The number of hints to generate.
+        base : str
+            See the description.
+        prototype : (float, float, int)
+            The hint to copy and paste over for each item.
+
+        Returns
+        -------
+        hints : dict[str, tuple[float, float, int]]
+            The resulting hints that can be passed to a MaterialFunction constructor.
+
+        """
+        
         hints = dict()
         for i in range(count):
             hints["{b}{i}".format(b=base, i=i)] = prototype
         return hints
     
-    def paramsToArray(count: int, base: str, params):
+    def paramsToArray(count: int, base: str, params : dict[str, typing.Any]) -> list[typing.Any]:
+        """
+        A helper method that strips the values out of the params dictionary with
+        keys of the form {base}{index}.
+
+        Parameters
+        ----------
+        count : int
+            The number of parameters with a specific base. The index in the
+            above description is incremented through this number.
+        base : str
+            See the description.
+        params : dict[str, typing.Any]
+            The parameters to convert to list form.
+
+        Returns
+        -------
+        arr : list[typing.Any]
+            The stripped parameters in list form.
+        """
         arr = []
         for i in range(count):
             arr.append(params["{b}{i}".format(b=base, i=i)])
         return arr
     
-    def arrayToParams(base: str, arr):
+    def arrayToParams(base: str, arr) -> dict[str, typing.Any]:
+        """
+        The inverse of paramsToArray
+
+        Parameters
+        ----------
+        base : str
+            See paramsToArray.
+        arr : list[typing.Any]
+            See paramsToArray.
+
+        Returns
+        -------
+        params : dict[str, typing.Any]
+            See paramsToArray.
+
+        """
         params = dict()
         for i, a in enumerate(arr):
             params["{b}{i}".format(b=base, i=i)] = a
         return params
     
-    def paramListHelper(count: int, base: str):
+    def paramListHelper(count: int, base: str) -> list[str]:
+        """
+        Generates a list of strings of the form {base}{index}. Index is
+        incremented through count.
+
+        Parameters
+        ----------
+        count : int
+            See above description.
+        base : str
+            See above description.
+
+        Returns
+        -------
+        list[str]
+            See above description.
+
+        """
         l = []
         for i in range(count):
             l.append("{b}{i}".format(b=base, i=i))
