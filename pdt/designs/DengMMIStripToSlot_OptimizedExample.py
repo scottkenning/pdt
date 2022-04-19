@@ -448,7 +448,7 @@ if __name__ == "__main__":
                                            strategy="maximize")
         optimizer.optimize(parameters, 
                            finite_difference=True,
-                           progress_render_fname="progress_fd.gif", 
+                           progress_render_fname="optimized.gif", 
                            progress_render_fig_kwargs=dict(figsize=(10, 15)), 
                            progress_render_duration=1000, 
                            options=dict(maxls=1, maxfun=10, maxiter=10))

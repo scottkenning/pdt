@@ -6,7 +6,7 @@ Created on Sun Mar 20 18:47:42 2022
 @author: skenning
 """
 
-from pdt.core import Simulation, Util, ParameterChangelog, Result
+from pdt.core import Simulation, Util, ParameterChangelog, Result, PreviousResults
 from pdt.opt import DesignRegion, MaterialFunction, LegendreTaperMaterialFunction, MinStepOptimizer, ScipyGradientOptimizer
 from pdt.tools import Render
 
@@ -36,16 +36,19 @@ class DengSymMMIStripToSlot(MaterialFunction):
                  mat_height,
                  ridge_order,
                  ridge_height,
-                 max_width):
+                 max_width,
+                 mmi_width=None,
+                 mmi_length=None,
+                 input_ridge_runup=None):
         
         # Placeholders for now
         db_hints = {
-            "mmi_width" : (.1, device_length, 10),
-            "mmi_length" : (.1, device_length, 10),
-            "input_ridge_runup" : (.1, device_length, 10)
+            "mmi_width" : (.01, device_length, 1000),
+            "mmi_length" : (.01, device_length, 1000),
+            "input_ridge_runup" : (.01, device_length, 1000)
             }
-        db_hints.update(MaterialFunction.hintHelper(taper_order, "taper", (.1, device_length, 10)))
-        db_hints.update(MaterialFunction.hintHelper(ridge_order, "ridge", (.1, device_length, 10)))
+        db_hints.update(MaterialFunction.hintHelper(taper_order, "taper", (.1, 1, 10)))
+        db_hints.update(MaterialFunction.hintHelper(ridge_order, "ridge", (.1, 1, 10)))
         MaterialFunction.__init__(self, db_hints=db_hints)
         
         # Primary values
@@ -59,6 +62,10 @@ class DengSymMMIStripToSlot(MaterialFunction):
         self.ridge_height = ridge_height
         self.max_width = max_width
         
+        self.mmi_width = mmi_width
+        self.mmi_length = mmi_length
+        self.input_ridge_runup = input_ridge_runup
+        
         # Basis for the taper
         self.taper_basis = [legendre(2*n + 1) for n in range(self.taper_order)] 
         self.ridge_basis = [legendre(2*n + 1) for n in range(self.ridge_order)] 
@@ -69,11 +76,20 @@ class DengSymMMIStripToSlot(MaterialFunction):
     def evalModel(self, coords, params: dict[str, float]):        
         # Drawing setup
         val = np.zeros(coords[0].shape)
-        mmi_width = params["mmi_width"]
-        mmi_length = params["mmi_length"]
         
-        input_ridge_runup = params["input_ridge_runup"]
-        
+        if self.mmi_width:
+            mmi_width = self.mmi_width
+        else:
+            mmi_width = params["mmi_width"]
+        if self.mmi_length:
+            mmi_length = self.mmi_length
+        else:
+            mmi_length = params["mmi_length"]
+        if self.input_ridge_runup:
+            input_ridge_runup = self.input_ridge_runup
+        else:
+            input_ridge_runup = params["input_ridge_runup"]
+                
         # Polynomial coefficients for our design
         taper_coeff = MaterialFunction.paramsToArray(self.taper_order, "taper", params)
         ridge_coeff = MaterialFunction.paramsToArray(self.ridge_order, "ridge", params)
@@ -138,10 +154,11 @@ class DengSymMMIStripToSlotSimulation(Simulation):
                  mat_height=0.250,
                  ridge_height=0.040,
                  center_wavelength=1.55,
-                 wavelengths=[1.55],
+                 wavelengths=np.linspace(1.50, 1.60, 3),
                  gaussian_width=10,
                  opt_parameters=[],
-                 catch_errors=False):
+                 catch_errors=False,
+                 render=False):
         Simulation.__init__(self, fname, working_dir="WD_DengMMIStripToSlot", catch_errors=catch_errors)
 
         # Order of boundaries
@@ -162,6 +179,7 @@ class DengSymMMIStripToSlotSimulation(Simulation):
         
         # Debug stuff
         self.catch_errors = catch_errors
+        self.render = render
         
         # Gradient evaluation
         self.opt_parameters = opt_parameters
@@ -186,23 +204,24 @@ class DengSymMMIStripToSlotSimulation(Simulation):
         parity = mp.ODD_Y + mp.EVEN_Z
         
         # Convergence parameters (included with the parameter list so automated convergence testing can change them around)
-        straight_length = parameters["straight_length"]
-        pml_x_thickness = parameters["pml_x_thickness"]
-        pml_y_thickness = parameters["pml_y_thickness"]
-        to_pml_x = parameters["to_pml_x"]
-        to_pml_y = parameters["to_pml_y"]
-        resolution = parameters["resolution"]
-        min_run_time = parameters["min_run_time"]
-        device_length = parameters["device_length"]
-        device_width = parameters["device_width"]
-        min_run_time = parameters["min_run_time"]
-        fields_decay_by = parameters["fields_decay_by"]
-        supply_gradient = parameters["supply_gradient"]
+        straight_length = float(parameters["straight_length"])
+        pml_x_thickness = float(parameters["pml_x_thickness"])
+        pml_y_thickness = float(parameters["pml_y_thickness"])
+        to_pml_x = float(parameters["to_pml_x"])
+        to_pml_y = float(parameters["to_pml_y"])
+        resolution = int(parameters["resolution"])
+        min_run_time = int(parameters["min_run_time"])
+        device_length = float(parameters["device_length"])
+        device_width = float(parameters["device_width"])
+        min_run_time = float(parameters["min_run_time"])
+        fields_decay_by = float(parameters["fields_decay_by"])
+        include_jac = bool(parameters["include_jac"])
         sigma = 0
         
         # Geometry parameters
-        mmi_length = parameters["mmi_length"]
-        mmi_width = parameters["mmi_width"]
+        mmi_length = float(parameters["mmi_length"])
+        mmi_width = float(parameters["mmi_width"])
+        input_ridge_runup = float(parameters["input_ridge_runup"])
         
         # Parameters expected to be changed around in the design region        
         opt_parameter_dict = dict((k,v) for k, v in parameters.items() if k in opt_parameters)
@@ -261,11 +280,14 @@ class DengSymMMIStripToSlotSimulation(Simulation):
                                                    mat_height=self.mat_height,
                                                    ridge_order=self.ridge_order,
                                                    ridge_height=self.ridge_height,
-                                                   max_width=device_width)
+                                                   max_width=device_width,
+                                                   mmi_width=mmi_width,
+                                                   mmi_length=mmi_length,
+                                                   input_ridge_runup=input_ridge_runup)
             self.design_region = DesignRegion([device_length, device_width], [meep_dr_nx, meep_dr_ny])
             
             # Design region setup (specific to MEEP)
-            meep_design_variables = mp.MaterialGrid(mp.Vector3(meep_dr_nx,meep_dr_ny),SiO2,Si,grid_type="U_MEAN", beta=0)
+            meep_design_variables = mp.MaterialGrid(mp.Vector3(meep_dr_nx,meep_dr_ny),SiO2,Si,grid_type="U_MEAN")
             meep_design_region = mpa.DesignRegion(meep_design_variables,volume=mp.Volume(center=mp.Vector3(), size=mp.Vector3(device_length, device_width, 0)))
     
             dr_geometry=mp.Block(size=meep_design_region.size, material=meep_design_variables)
@@ -309,8 +331,7 @@ class DengSymMMIStripToSlotSimulation(Simulation):
                                                design_regions=[meep_design_region],
                                                frequencies=1.0/np.asarray(self.wavelengths),
                                                decay_by=1e-9,
-                                               minimum_run_time=min_run_time,
-                                               finite_difference_step=1e-3)
+                                               minimum_run_time=min_run_time)
             
         else:
             self._log_info("Convergence parameters did not change")        
@@ -319,55 +340,88 @@ class DengSymMMIStripToSlotSimulation(Simulation):
         design = self.design_region.evalMaterialFunction(self.converter, opt_parameter_dict, sigma)
         self.opt.update_design([design.transpose().flatten()])
         
-        plt.figure()
-        self.opt.plot2D(True)
-        plt.savefig("{working_dir}/progress.png".format(working_dir=self.working_dir))
-
-        if supply_gradient:
-            # Run the forward and adjoint run
-            f0, dJ_du = (self.opt)()
-            if len(dJ_du.shape) > 1:
-                dJ_du = npa.sum(dJ_du, axis=1)
-            dJ_du = dJ_du.reshape(self.design_region.N).transpose()
+        if self.render:
+            field_data = []
+            collect_fields = lambda mp_sim: field_data.append(mp_sim.get_efield_y())
+            self.sim.run(mp.at_every(2, collect_fields), 
+                         until_after_sources=mp.stop_when_fields_decayed(min_run_time,mp.Ey,output_monitor_pt,fields_decay_by))
             
-            plt.figure()
-            plt.imshow(dJ_du)
-            plt.colorbar()
-            plt.savefig("{working_dir}/adjoint.png".format(working_dir=self.working_dir))
-            
-            # Compute the gradient with respect to the taper parameters
-            order, du_db, min_db, all_du_db = self.design_region.evalMaterialFunctionDerivative(self.converter, opt_parameter_dict, sigma) # Material function vs taper coefficients
-            dJ_db = np.asarray([np.sum(dJ_du * du_db[i]) for i in range(len(order))]).flatten()
-            
-            
-            all_dJ_db = []
-            for i in range(len(order)):
-                all_dJ_db.append(np.asarray([np.sum(dJ_du * all_du_db[i][j]) for j in range(len(order))]).flatten())
-            all_dJ_db = np.asarray(all_dJ_db)
-            
-            return Result(parameters, f0=f0, dJ_du=dJ_du, dJ_db=dJ_db, min_db=np.asarray(min_db), all_du_db=all_du_db, all_dJ_du=all_dJ_db, wavelengths=self.wavelengths)
+            render = Render("{working_dir}/render.gif".format(working_dir=self.working_dir))
+            max_field = np.max(np.abs(np.real(field_data)))
+            for data in field_data:
+                fig = plt.figure(dpi=128)
+                plt.imshow(self.sim.get_epsilon().transpose(), interpolation='spline36', cmap='binary', extent=(-sx/2, sx/2, -sy/2, sy/2))
+                plt.imshow(np.real(data).transpose(), vmin=-max_field, vmax=max_field, interpolation='spline36', cmap='RdBu', alpha=0.9, extent=(-sx/2, sx/2, -sy/2, sy/2))
+                plt.xlabel("x (µm)")
+                plt.ylabel("y (µm)")
+                render.add(fig)
+                plt.close()
+            render.render(50)
         else:
-            self.opt.forward_run()
-            return Result(parameters, f0=self.opt.f0)
+            if include_jac:
+                # Run the forward and adjoint run
+                f0, dJ_du = (self.opt)()
+                if len(dJ_du.shape) > 1:
+                    dJ_du = npa.sum(dJ_du, axis=1)
+                dJ_du = dJ_du.reshape(self.design_region.N).transpose()
+                
+                plt.figure()
+                plt.imshow(dJ_du)
+                plt.colorbar()
+                
+                # Compute the gradient with respect to the taper parameters
+                order, du_db, min_db, all_du_db = self.design_region.evalMaterialFunctionDerivative(self.converter, opt_parameter_dict, sigma) # Material function vs taper coefficients
+                dJ_db = np.asarray([np.sum(dJ_du * du_db[i]) for i in range(len(order))]).flatten()
+                
+                '''
+                all_dJ_db = []
+                for i in range(len(order)):
+                    all_dJ_db.append(np.asarray([np.sum(dJ_du * all_du_db[i][j]) for j in range(len(order))]).flatten())
+                all_dJ_db = np.asarray(all_dJ_db)
+                '''
+                
+                self._log_info("adj. gradient: {gradient}".format(gradient=dJ_db))
+                
+                return Result(parameters, f0=f0, dJ_du=dJ_du, dJ_db=dJ_db*10, min_db=np.asarray(min_db), all_du_db=all_du_db, wavelengths=self.wavelengths)
+            else:
+                self.opt.forward_run()
+                return Result(parameters, f0=self.opt.f0)
         
     def process(self, result, parameters):
         return result
 
+def getBestParameters():
+    pr = PreviousResults("DengMMIStripToSlot", "WD_DengMMIStripToSlot")
+    
+    def objective(f0):
+        return f0[()] # get the scalar data out of the HDF5 Dataset
+    best = pr.getBestParameters("f0", objective, True)
+    
+    if best:
+        print(best)
+    else:
+        print("no previous simulation data found")
+        
+    return best
+
 if __name__ == "__main__":
+    render = False
+    resolution = 64
+    
     # Constraints
-    ridge_order = 3
-    taper_order = 3
+    ridge_order = 6
+    taper_order = 6
 
     device_length = 6
     device_width = 3
     
     # Starting stuff
-    mmi_length_start = 0.1#1.38
-    mmi_width_start = 0.5#1.24
+    mmi_length_start = 1.38
+    mmi_width_start = 1.24
     input_ridge_runup_start = 1
 
     # Parameters to optimize over
-    opt_parameters = ["mmi_length", "mmi_width", "input_ridge_runup"]
+    opt_parameters = [] #["mmi_length", "mmi_width", "input_ridge_runup"]
     opt_parameters.extend(MaterialFunction.paramListHelper(taper_order, "taper"))
     opt_parameters.extend(MaterialFunction.paramListHelper(ridge_order, "ridge"))
 
@@ -375,59 +429,64 @@ if __name__ == "__main__":
     sim = DengSymMMIStripToSlotSimulation(fname="DengMMIStripToSlot",
                                           taper_order=taper_order,
                                           ridge_order=ridge_order,
-                                          opt_parameters=opt_parameters)
+                                          opt_parameters=opt_parameters,
+                                          render=render)
     
-    parameters = {
-        "straight_length" : 3,
-        "pml_x_thickness" : 1,
-        "pml_y_thickness" : 1,
-        "to_pml_x" : 1,
-        "to_pml_y" : 1,
-        "resolution" : 16,
-        "min_run_time" : 100,
-        "fields_decay_by" : 1e-9,
-        "device_length" : device_length,
-        "device_width" : device_width,
-        "mmi_length" : mmi_length_start,
-        "mmi_width" : mmi_width_start,
-        "input_ridge_runup" : input_ridge_runup_start,
-        "supply_gradient" : False
-    }
-    # Start ridge/taper out linearly
-    for i, name in enumerate(MaterialFunction.paramListHelper(taper_order, "taper")):
-        if i == 0:
-            parameters[name] = 1
-        else:
-            parameters[name] = 0
-    for i, name in enumerate(MaterialFunction.paramListHelper(ridge_order, "ridge")):
-        if i == 0:
-            parameters[name] = 0.25
-        else:
-            parameters[name] = 0
+    previous_best = getBestParameters()
+    
+    parameters = None
+    if previous_best and not render:
+        parameters = previous_best
+        sim._log_info("starting with the previous best of {parameters}".format(parameters=parameters))
+    else:
+        parameters = {
+            "mmi_length" : mmi_length_start,
+            "mmi_width_start" : mmi_width_start,
+            "input_ridge_runup" : input_ridge_runup_start,
+            "straight_length" : 3,
+            "pml_x_thickness" : 1,
+            "pml_y_thickness" : 1,
+            "to_pml_x" : 1,
+            "to_pml_y" : 1,
+            "min_run_time" : 100,
+            "fields_decay_by" : 1e-9,
+            "device_length" : device_length,
+            "device_width" : device_width,
+            "mmi_length" : mmi_length_start,
+            "mmi_width" : mmi_width_start,
+            "input_ridge_runup" : input_ridge_runup_start,
+            "include_jac" : False
+        }            
+        for i, taper_i in enumerate(MaterialFunction.paramListHelper(taper_order, "taper")):
+            if i == 0:
+                parameters[taper_i] = 1
+            else:
+                parameters[taper_i] = 0
+        for i, ridge_i in enumerate(MaterialFunction.paramListHelper(taper_order, "ridge")):
+            if i == 0:
+                parameters[ridge_i] = 0.25
+            else:
+                parameters[ridge_i] = 0
         
-    optimizer = ScipyGradientOptimizer(sim, 
-                                       sim.getCurrentDesignRegion, 
-                                       sim.getCurrentDesign, 
-                                       "f0", 
-                                       "dJ_db", 
-                                       opt_parameters, 
-                                       strategy="maximize")
-    optimizer.optimize(parameters, 
-                       finite_difference=True,
-                       progress_render_fname="progress_debug.gif", 
-                       progress_render_fig_kwargs=dict(figsize=(10, 15)), 
-                       progress_render_duration=1000, 
-                       options=dict(maxls=1, maxfun=10, maxiter=10))
-
-'''
-adjoint large step size:
-    jac=[-2.42547988e-03  9.64607670e-05  4.04789799e-02 -2.53528525e-03
- -1.72889053e-03 -1.90737341e-02 -6.44385882e-03 -5.42830500e-03
- -2.88149899e-03]
-
-adjoint small step size:
-    jac=[-1.92435283e-05 -5.20465123e-05 -1.92435283e-05 -3.68370574e-05
- -1.16419895e-05 -2.58872396e-05 -5.88848704e-06  4.20188756e-06
- -1.11045224e-06]
-
-'''
+    parameters["resolution"] = resolution
+    if render:
+        sim.oneOff(parameters)
+    else:
+        optimizer = ScipyGradientOptimizer(sim, 
+                                           sim.getCurrentDesignRegion, 
+                                           sim.getCurrentDesign, 
+                                           "f0", 
+                                           "dJ_db", 
+                                           opt_parameters, 
+                                           strategy="maximize",
+                                           method="L-BFGS-B")
+        
+        #bounds = [(mmi_length_start,mmi_length_start), (mmi_width_start,mmi_width_start), (input_ridge_runup_start,input_ridge_runup_start)]
+        #bounds.extend([(0, 1)]*(taper_order+ridge_order))
+        optimizer.optimize(parameters, 
+                           finite_difference=False,
+                           progress_render_fname="progress.gif", 
+                           progress_render_fig_kwargs=dict(figsize=(10, 15)), 
+                           progress_render_duration=1000, 
+                           #bounds=bounds,
+                           options=dict(maxls=10, maxfun=10, maxiter=10))

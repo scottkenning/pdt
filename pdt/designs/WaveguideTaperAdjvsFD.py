@@ -292,7 +292,7 @@ if __name__ == "__main__":
         for bi in MaterialFunction.paramListHelper(taper_order, "b"):
             parameters[bi] = 0
     
-        parameters["b0"] = 1 # We start with something absurd, and then improve it.
+        parameters["b0"] = 0 # We start with something absurd, and then improve it.
     
     parameters["resolution"] = resolution
     if render:

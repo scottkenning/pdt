@@ -113,22 +113,41 @@ class ParameterChangelog:
         return False
             
 
-'''
-The Simulation class is meant to be inhereted from in the user's code. They 
-create a derived class and override some of the methods to tailor the behavior
-to their problem. This class allows the following:
- - One time initialization is performed in their constructor (__init__ method).
- - Desired simulation parameter loading (for sweeps) can be performed
-   automatically (e.g., with the .basicSweep() command).
- - A template for drawing, running, and post-processing are provided. These
-   routines are ran in a fault-tolerant way. Any Python exceptions are caught
-   and logged. The Simulation class then moves on to the next simulation
-   (if there are more to run).
- - The .run() and .process() methods can return an object of the Result class.
-   This stores data that will be automatically saved in the HDF5 format.
-'''
 class Simulation:
-    def __init__(self, logname, working_dir="working_dir", catch_errors=True):       
+    '''
+    The Simulation class is meant to be inhereted from in the user's code. They 
+    create a derived class and override some of the methods to tailor the behavior
+    to their problem. This class allows the following:
+     - One time initialization is performed in their constructor (__init__ method).
+     - Desired simulation parameter loading (for sweeps) can be performed
+       automatically (e.g., with the .basicSweep() command).
+     - A template for drawing, running, and post-processing are provided. These
+       routines are ran in a fault-tolerant way. Any Python exceptions are caught
+       and logged. The Simulation class then moves on to the next simulation
+       (if there are more to run).
+     - The .run() and .process() methods can return an object of the Result class.
+       This stores data that will be automatically saved in the HDF5 format.
+    '''
+    def __init__(self, logname : str, working_dir : str, catch_errors=True):     
+        """
+        Constructor for the Simulation super class.         
+
+        Parameters
+        ----------
+        logname : str
+            The file name of data and logs to be generated.
+        working_dir : str
+            The directory to store all file outputs.
+        catch_errors : bool, optional
+            If True, exceptions will be suppressed and logged. Otherwise, they will
+            be allowed to propagate.
+
+        Returns
+        -------
+        None.
+
+        """
+        
         # Working directory
         self.working_dir = working_dir
         if_master(make_path_exist)(working_dir)
@@ -160,23 +179,63 @@ class Simulation:
             logger.addHandler(fh)
         return logger           
     
-    '''
-    Core routines that are overridden by the user when they develop their 
-    simulations.
-    '''
-    def draw(self, parameters):
+    def draw(self, parameters : dict[str, typing.Any]) -> None:
+        """
+        The method to override if you wish to draw your simulation in a separate
+        block than your run code.
+        
+        This is called from all MPI processes.
+
+        Parameters
+        ----------
+        parameters : dict[str, typing.Any]
+            A dictionary of parameters to use in the simulation.
+
+        Returns
+        -------
+        None.
+
+        """
         pass
     
-    def run(self, parameters):
+    def run(self, parameters : dict[str, typing.Any]) -> Result:
+        """
+        The method to override where you call code that actually runs the simulation.
+        
+        This is called from all MPI processes.
+
+        Parameters
+        ----------
+        parameters : dict[str, typing.Any]
+            A dictionary of parameters to use in the simulation.
+
+        Returns
+        -------
+        Result
+            A Result object containing whatever simulation data is relevant.
+        """
         return Result(parameters)
     
     @if_master
-    def process(self, result, parameters):
+    def process(self, result : Result, parameters : dict[str, typing.Any]) -> Result:
+        """
+        
+
+        Parameters
+        ----------
+        result : Result
+            The result object returned from the run method.
+        parameters : dict[str, typing.Any]
+            A dictionary of parameters to use in the simulation.
+
+        Returns
+        -------
+        Result
+            A Result object containing whatever simulation data is relevant.
+
+        """
         return result
     
-    '''
-    Logging wrapper routines to ensure the master process is only logging.
-    '''
     @if_master
     def _log_info(self, msg: str):
         self.logger.info(msg)
@@ -192,13 +251,80 @@ class Simulation:
     @if_master
     def _log_critical(self, msg: str):
         self.logger.error(msg)
+        
+    def logInfo(self, msg : str):
+        """
+        Log a message on the info level.
 
-    '''
-    Some predefined functions that run the .draw(), .run(), and .process()
-    routines in some fashion, such as a basic parameter sweep based off of 
-    a list of parameters. 
-    '''
-    def oneOff(self, iteration_parameters: dict[str, typing.Any], iteration=1, total_iterations=1):
+        Parameters
+        ----------
+        msg : str
+            The message.
+
+        Returns
+        -------
+        None.
+
+        """
+        self._log_info(msg)
+        
+    def logWarning(self, msg : str):
+        """
+        Log a message on the warning level.
+
+        Parameters
+        ----------
+        msg : str
+            The message.
+
+        Returns
+        -------
+        None.
+
+        """
+        self._log_warning(msg)
+        
+    def logError(self, msg : str):
+        """
+        Log a message on the error level.
+
+        Parameters
+        ----------
+        msg : str
+            The message.
+
+        Returns
+        -------
+        None.
+
+        """
+        self._log_error(msg)
+
+    def oneOff(self, iteration_parameters: dict[str, typing.Any], iteration=1, total_iterations=1) -> typing.Union[Result, None]:
+        """
+        This method attempts to run a single simulation with the parameters given
+        by iteration_parameters. It will call the draw, run, and process methods.
+        It will also suppress and log errors if they occur (assuming catch_errors=True).
+
+        Parameters
+        ----------
+        iteration_parameters : dict[str, typing.Any]
+            The parameters to be used in this one-off simulation.
+        iteration : int, optional
+            If this was called in a larger loop, this can be set to the count 
+            of the simulation for logging purposes. The default is 1.
+        total_iterations : TYPE, optional
+            If this was called in a larger loop, this can be set to the total
+            count of the simulation for logging purposes. The default is 1.
+
+        Returns
+        -------
+        typing.Union[Result, None]
+            A Result object if the process routine also returns one. None otherwise
+            or in the case of errors.
+
+        """
+        
         # The core code that gets called on all processes
         def _one_off(root_result):
             # We suppress and log it
@@ -256,6 +382,21 @@ class Simulation:
         # So when we are running alot of simulations, we don't want some random error in one of them to kill this entire process
 
     def basicSweep(self, parameters: dict[str, list[typing.Any]]):
+        """
+        This essentially runs multiple oneOff simulations in an automated fashion.
+
+        Parameters
+        ----------
+        parameters : dict[str, list[typing.Any]]
+            A dictionary of parameters, but the item is now a list specifying
+            the different parameters to run the simulations with.
+
+        Returns
+        -------
+        None.
+
+        """
+        
         # Provides a basic way to sweep parameters
         self._log_info("Starting a basic sweep.")
         
@@ -272,17 +413,57 @@ class Simulation:
             self._log_info("Finished basic sweep")
         else:
             self._log_critical("All parameters in the sweep must have the same length, terminating")
-            raise ValueError("Basic sweep failed on all parameters not having uniform length")
 
-'''
-A class to help parse previous results and resume states
-'''
 class PreviousResults:
-    def __init__(self, logname, working_dir="working_dir"):
+    """
+    This class provides functionality to load in previous parameters and the results
+    of the corresponding simulations from HDF5 files. 
+    """
+    
+    def __init__(self, logname : str, working_dir : str):
+        """
+        Constructor for PreviousResults.
+
+        Parameters
+        ----------
+        logname : str
+            See the same variable for the Simulation class.
+        working_dir : str
+            See the same variable for the Simulation class.
+
+        Returns
+        -------
+        None.
+
+        """
+        
         self.logname = logname
         self.working_dir = working_dir
         
-    def getBestParameters(self, fom : str, objective, maximize_objective : bool):
+    def getBestParameters(self, fom : str, objective, maximize_objective : bool) -> typing.Union[dict[str, typing.Any], None]:
+        """
+        This will look at the HDF5 file specified by logname and working_dir.
+        It will load in the parameters deemed best by the objective and the fom
+        and return them. 
+
+        Parameters
+        ----------
+        fom : str
+            The key for the data determined to be the figure of merit.
+        objective : function(object) -> float
+            A function that takes the object found in the file matching the key
+            denoted by the fom variable and converts it into a float.
+        maximize_objective : bool
+            Find the parameters that maximize the objective.
+
+        Returns
+        -------
+        typing.Union[dict[str, typing.Any], None]
+            The parameters or None, if they are not found for some reason (i.e.,
+            error or file not found).
+
+        """
+        
         try: # If the file doesn't exist
             with h5py.File('{working_dir}/{logname}.hdf5'.format(working_dir=self.working_dir, logname=self.logname), 'r') as root_result:
                 # Loop through each simulation, and if the fom is present
@@ -312,5 +493,4 @@ class PreviousResults:
                 else:
                     return None
         except Exception as e:
-            print(e)
             return None
