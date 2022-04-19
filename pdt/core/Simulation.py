@@ -67,7 +67,37 @@ class Result:
             Result._save_data(group, name, value, logger)
             
 class CSVParameterLoader:
-    def __init__(self, fname):
+    """
+    A simple helper class for loading parameters from a CSV file into the
+    dict[str, list[typing.Any]] format required by Simulation.basicSweep.
+    
+    Attributes
+    ----------
+    parameters : dict[str, list[typing.Any]]
+        The parameters loaded from the CSV.
+    """
+    
+    def __init__(self, fname : str):
+        """
+        The constructor of CSVParameterLoader, which also happens to be the only
+        method and performs loading into the parameters attribute.
+
+        Parameters
+        ----------
+        fname : str
+            The CSV file's name and path.
+
+        Raises
+        ------
+        ValueError
+            If the columns of the CSV file are not of equal length, an exception
+            is raised..
+
+        Returns
+        -------
+        None.
+
+        """
         self.fname = fname
         self.parameters = dict()
         
