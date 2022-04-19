@@ -702,7 +702,34 @@ class ScipyGradientOptimizer:
 # A nice demonstration example. Taper boundaries are defined by the odd Legendre Polynomials
 from scipy.special import legendre
 class LegendreTaperMaterialFunction(MaterialFunction):
-    def __init__(self, order, dim, w1, w2):
+    """
+    A demonstration example of a MaterialFunction. It is a taper whose boundaries are
+    defined by Legendre polynomials, and the degree's of freedom are the coefficients
+    to those polynomials in a linear superposition. Essentially, this allows for the
+    boundaries of a taper to be wiggled around for optimization purposes.
+    """
+    
+    def __init__(self, order : int, dim, w1 : float, w2 : float):
+        """
+        Constructor for LegendreTaperMaterialFunction.
+
+        Parameters
+        ----------
+        order : int
+            The number of polynomials to use.
+        dim : array-like of floats
+            Specifies the dimensions of the device.
+        w1 : float
+            Input width.
+        w2 : float
+            Output width.
+
+        Returns
+        -------
+        None.
+
+        """
+        
         MaterialFunction.__init__(self, db_hints=MaterialFunction.hintHelper(count=order, base='b', prototype=(.25, 1, 100)))
         self.order = order
         self.dim = dim    
