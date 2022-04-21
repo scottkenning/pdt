@@ -253,9 +253,9 @@ def getBestParameters():
       
 if __name__ == "__main__":
     render = False
-    resolution = 64
+    resolution = 128
     
-    taper_order = 5
+    taper_order = 10
     
     sim = LegendreTaperSimulation(center_wavelength=1.55,
                                   gaussian_width=5,

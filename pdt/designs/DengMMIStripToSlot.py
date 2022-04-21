@@ -382,7 +382,7 @@ class DengSymMMIStripToSlotSimulation(Simulation):
                 
                 self._log_info("adj. gradient: {gradient}".format(gradient=dJ_db))
                 
-                return Result(parameters, f0=f0, dJ_du=dJ_du, dJ_db=dJ_db*10, min_db=np.asarray(min_db), all_du_db=all_du_db, wavelengths=self.wavelengths)
+                return Result(parameters, f0=f0, dJ_du=dJ_du, dJ_db=dJ_db, min_db=np.asarray(min_db), all_du_db=all_du_db, wavelengths=self.wavelengths)
             else:
                 self.opt.forward_run()
                 return Result(parameters, f0=self.opt.f0)
