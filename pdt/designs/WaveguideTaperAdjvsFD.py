@@ -6,8 +6,8 @@ Created on Wed Mar  2 11:18:16 2022
 @author: skenning
 """
 
-from pdt.core import Simulation, Util, ParameterChangelog, Result, PreviousResults
-from pdt.opt import DesignRegion, MaterialFunction, LegendreTaperMaterialFunction, MinStepOptimizer, ScipyGradientOptimizer
+from pdt.core import Simulation, Util, ParameterChangelog, Result, PreviousResults, ConvergenceTest
+from pdt.opt import DesignRegion, MaterialFunction, LegendreTaperMaterialFunction, ScipyGradientOptimizer
 from pdt.tools import Render, ProgressRender
 
 import meep as mp
@@ -76,7 +76,7 @@ class LegendreTaperSimulation(Simulation):
         fields_decay_by = float(parameters["fields_decay_by"])
         include_jac = parameters["include_jac"]
         sigma = 0
-                
+                        
         # Optimization parameter(s)
         polynomial_coeffs = MaterialFunction.paramsToArray(self.taper_order, "b", parameters)
         
@@ -253,7 +253,8 @@ def getBestParameters():
       
 if __name__ == "__main__":
     render = False
-    resolution = 128
+    convergence_test_first = True
+    resolution = 16
     
     taper_order = 10
     
@@ -293,8 +294,36 @@ if __name__ == "__main__":
             parameters[bi] = 0
     
         parameters["b0"] = 0 # We start with something absurd, and then improve it.
-    
     parameters["resolution"] = resolution
+    parameters["include_jac"] = False
+        
+    if convergence_test_first:
+        ct = ConvergenceTest(sim, 
+                             convergence_parameters={"resolution" : (16, 128),
+                                                     "straight_length" : (1.0, 10.0),
+                                                     "pml_x_thickness" : (1.0, 5.0),
+                                                     "pml_y_thickness" : (1.0, 5.0),
+                                                     "to_pml_x" : (1.0, 5.0),
+                                                     "to_pml_y" : (1.0, 5.0)},
+                             fom="f0",
+                             relative_change=0.01,
+                             absolute_change=0.01,
+                             max_steps=10,
+                             certainty_steps=3,
+                             interval_generation=np.linspace)
+        '''
+        The convergence_parameters dict is noteworthy to talk about. If the tuple
+        passed for the bounds consists of floats (i.e., there is a decimal place 
+        in both numbers, indicating their floating point status), then the code will not
+        round to the nearest integer. Otherwise, it will round to the nearest integer.
+        For example, since the bounds for resolution are both ints, the code will round
+        the sweeped points to the nearest integer.        
+        '''
+        
+        parameters = ct.run(parameters,
+                            plot_fname="convergence")
+    
+    
     if render:
         sim.oneOff(parameters)
     else:

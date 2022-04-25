@@ -164,6 +164,9 @@ For example, passing \mintinline{latex}{f0=f0} means ``save the variable in the 
 
 The \mintinline{latex}{Result} class can handle data types that HDF5 supports. This includes most of the \mintinline{latex}{numpy} array types.
 
+\subsection{The ConvergenceTest Class}
+The \mintinline{latex}{ConvergenceTest} class performs exactly what it sounds like: convergence testing. Ultimately, the user guesses at what range of parameters needs to be swept. In addition, convergence criteria is supplied. It can optionally generate plots that would provide proof of convergence, and will return the suggested parameters required for appropriate convergence. See the in-code documentation for more information found in \mintinline{latex}{pdt/core/Simulation.py}.
+
 \section{Addressing Design Problems}
 Addressing design problems, which are essentially in the form of optimization problems, is quite nuanced depending on what solver is used. In FDTD, it is possible to efficiently obtain gradient information of a design with two simulations. There are two strategies available that fall under ``adjoint methods", and usually one is implemented to a degree by the solver. In the case of MEEP, ``density-based" methods are employed. 
 

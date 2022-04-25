@@ -13,6 +13,7 @@ import h5py
 import time
 import numpy as np
 import copy
+import matplotlib.pyplot as plt
 
 from pdt.core.Util import *
 from pdt.core.Util import if_master
@@ -517,7 +518,196 @@ class Simulation:
             self._log_info("Finished basic sweep")
         else:
             self._log_critical("All parameters in the sweep must have the same length, terminating")
+            
+class ConvergenceTest:
+    def __init__(self, 
+                 sim: Simulation, 
+                 convergence_parameters: dict[str, tuple[typing.Union[int, float], typing.Union[int, float]]],
+                 fom: str,
+                 relative_change=0.01, 
+                 absolute_change=None,
+                 max_steps=10,
+                 certainty_steps=3,
+                 interval_generation=np.linspace):
+        """
+        The constructor for ConvergenceTest. It takes information that dictates
+        how convergence testing will be performed.
 
+        Parameters
+        ----------
+        sim : Simulation
+            The simulation to convergence test.
+        convergence_parameters : dict[str, tuple[typing.Union[int, float], typing.Union[int, float]]]
+            A dictionary of parameter names to convergence test along with a 
+            tuple of two elements (lower, higher). This range dictates the range
+            over the convergence will be tested. Note that "higher" indicates
+            higher expected accuracy. If convergence testing a parameter like
+            maximum mesh size, it is perfectly ok to pass in something like
+            (1e-6, 1e-9).
+        fom : str
+            The field to pull out of the Result object returned by the simulation.
+            This is what will be used to judge convergence.
+        relative_change : float or None, optional
+            This parameter specifies how strict the convergence is. When the change
+            is < relative_change * np.abs(np.max(foms) - np.min(foms)), convergence
+            has been reached. The default is 0.01.
+        absolute_change : float or None, optional
+            This parameter specifies how strict the convergence is. When the change
+            is < absolute_change, convergence has been reached. The default is None.
+            Note that relative_change or absolute_change cannot both be None.
+        max_steps : int, optional
+            The maximum number of steps to divide the ranges provided in the 
+            convergence parameters into. The default is 10.
+        certainty_steps : int, optional
+            The minimum number of recent points visited that meet the convergence
+            criteria. The default is 3.
+        interval_generation : function of the signature (lower, upper, steps)->array, optional
+            The default is np.linspace. Another canidate is np.geomspace. These
+            functions dictate how to split up the interval for each parameter
+            being swept for convergence.
+
+        Raises
+        ------
+        ValueError
+            Rasied if relative_change is None and absolute_change is None.
+
+        Returns
+        -------
+        None.
+
+        """
+    
+        self.sim = sim
+        self.convergence_parameters = convergence_parameters
+        self.fom = fom
+        
+        self.relative_change = relative_change
+        self.absolute_change = absolute_change
+        self.max_steps = max_steps
+        self.certainty_steps = certainty_steps
+        
+        self.interval_generation = interval_generation
+        
+        if (self.relative_change is None) and (self.absolute_change is None):
+            raise ValueError("Note that relative_change must be defined or absolute_change must be defined")
+    
+    def _has_converged(self, pname, foms):
+        if len(foms) > self.certainty_steps:
+            # If the last certainty_steps have converged, then we indicate convergence
+            # Convergence is defined as changing less than relative_change * |max(fom) - min(fom)|
+            
+            # Absolute convergence
+            converged = True
+            for i in range(self.certainty_steps):       
+                change = np.abs(foms[-1-i] - foms[-2-i])
+                
+                # Each of the last certainty_steps must satisfy absolute or relative convergence
+                iteration_change = False
+                if self.relative_change is not None:
+                    relative_change_threshold = self.relative_change * np.abs(np.max(foms) - np.min(foms))
+                    iteration_change |= (change < relative_change_threshold)
+                
+                if self.absolute_change is not None:
+                    iteration_change |= (change < self.absolute_change)
+                
+                converged &= iteration_change
+                if not converged:
+                    self.sim._log_info("change for {pname} did not satisfy convergence: {change}".format(pname=pname, change=change))
+                    break
+            
+            return converged
+
+        else:
+            return False
+    
+    def _converge_single(self, pname, interval_vals, base_parameters):
+        self.sim._log_info("Beginning convergence for {pname}".format(pname=pname))
+        parameters = copy.deepcopy(base_parameters)
+        
+        test_vals = []
+        foms = []
+        suggested_val = None
+        for i, test_val in enumerate(interval_vals):
+            parameters[pname] = test_val
+            
+            result = self.sim.oneOff(parameters)
+            fom = result.values[self.fom]
+            
+            test_vals.append(test_val)
+            foms.append(fom)
+            
+            suggested_val = interval_vals[i-self.certainty_steps]
+            
+            if self._has_converged(pname, foms):
+                self.sim._log_info("{pname} converged at {suggested_val}".format(pname=pname, suggested_val=suggested_val))
+                break
+            
+        return suggested_val, test_vals, foms                
+    
+    def run(self, base_parameters: dict[str, typing.Any], plot_fname=None) -> dict[str, typing.Union[int, float]]:
+        """
+        Run the convergence test.
+
+        Parameters
+        ----------
+        base_parameters : dict[str, typing.Any]
+            The parameters to initially assume.
+        plot_fname : str or None, optional
+            The file prefix to save convergence plots with. The default is None,
+            which implies no plots will be generated.
+
+        Raises
+        ------
+        ValueError
+            There are two parameters types capable of being swept: integer and
+            floating point numbers. This function will attempt to deduce whether
+            to round to the nearest integer. This error will be raised if it
+            cannot deduce that.
+
+        Returns
+        -------
+        resulting_base_parameters : dict[str, typing.Union[int, float]]
+            The suggested parameters to use after convergence testing.
+            It includes parameters passed in that were not convergence tested,
+            also.
+
+        """
+        
+        self.sim._log_info("Starting convergence testing")
+        
+        results = dict()
+        
+        resulting_base_parameters = copy.deepcopy(base_parameters)        
+        for pname, interval in self.convergence_parameters.items():
+            # Generate the interval
+            interval_vals = None
+            if isinstance(interval[0], int) and isinstance(interval[1], int):
+                # We generate integers
+                interval_vals = np.round(self.interval_generation(interval[0], interval[1], self.max_steps))
+            elif isinstance(interval[0], float) and isinstance(interval[1], float):
+                # We generate floats
+                interval_vals = self.interval_generation(interval[0], interval[1], self.max_steps)
+            else:
+                error_str = "Convergence testing of {pname} on ({start}, {end}) failed because the type of the interval could not be deduced to be a float or int.".format(pname=pname, start=interval[0], end=interval[1])
+                self.sim._log_error(error_str)
+                raise ValueError(error_str)
+            
+            suggested_val, test_vals, foms = self._converge_single(pname, interval_vals, resulting_base_parameters)
+            results[pname] = suggested_val
+            resulting_base_parameters[pname] = suggested_val
+            
+            if plot_fname is not None:
+                plt.figure()
+                plt.title("convergence for {pname}".format(pname=pname))
+                plt.xlabel("value")
+                plt.ylabel("fom")
+                plt.scatter(test_vals, foms)
+                plt.savefig("{working_dir}/{plot_fname}_{pname}.png".format(working_dir=self.sim.working_dir, plot_fname=plot_fname, pname=pname))
+            
+        self.sim._log_info("Convergence testing finished with {results}".format(results=results))
+            
+        return resulting_base_parameters
+            
 class PreviousResults:
     """
     This class provides functionality to load in previous parameters and the results
